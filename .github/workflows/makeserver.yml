@@ -19,6 +19,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      # 一个镜像失败时，其他镜像继续构建，方便一次看到所有问题
+      fail-fast: false
       matrix:
         include:
           - image: app
