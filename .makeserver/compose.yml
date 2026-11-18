@@ -23,18 +23,29 @@ services:
     build:
       context: ..
       dockerfile: .makeserver/docker/app.Dockerfile
+    # 镜像自带的检查访问 2019 管理端口（我们关掉了），改成检查 Laravel 的 /up
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://localhost/up || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     networks:
       default: {}
       web:
-        aliases: [${MS_PROJECT}-app]
+        aliases: ["${MS_PROJECT}-app"]
 
   queue:
     <<: *app
     command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--max-time=3600"]
+    healthcheck:
+      disable: true
 
   scheduler:
     <<: *app
     command: ["php", "artisan", "schedule:work"]
+    healthcheck:
+      disable: true
 
   # 商家后台（静态 SPA）
   admin:
@@ -45,7 +56,7 @@ services:
     restart: unless-stopped
     networks:
       web:
-        aliases: [${MS_PROJECT}-admin]
+        aliases: ["${MS_PROJECT}-admin"]
 
   mysql:
     image: mysql:8.4
