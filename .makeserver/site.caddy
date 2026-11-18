@@ -1,16 +1,20 @@
-# Lumée 站点（ms deploy 把 ${变量} 换成 secrets/lumee.env 里的值后，写到服务器 /srv/edge/sites/lumee.caddy）
+# Lumée 站点：ms deploy 把 ${变量} 换成 secrets/<实例>.env 里的值，写到服务器 /srv/edge/sites/<实例>.caddy
+# ${MS_PROJECT} 是实例名（lumee / lumee-staging），容器别名都带它，同一台服务器上不会冲突。
+# lb_try_duration：滚动更新时新旧容器交接的几秒内，请求会自动重试，用户看不到报错。
 
 # 商家后台：页面来自 admin 容器，/api 转给 Laravel
 ${LUMEE_ADMIN_HOST} {
 	encode zstd gzip
-	handle /api/* {
-		reverse_proxy lumee-app:80
-	}
-	handle /sanctum/* {
-		reverse_proxy lumee-app:80
+	@api path /api/* /sanctum/*
+	handle @api {
+		reverse_proxy ${MS_PROJECT}-app:80 {
+			lb_try_duration 10s
+		}
 	}
 	handle {
-		reverse_proxy lumee-admin:80
+		reverse_proxy ${MS_PROJECT}-admin:80 {
+			lb_try_duration 10s
+		}
 	}
 }
 
@@ -23,5 +27,7 @@ https:// {
 	}
 	# 签证书的询问接口只给 Caddy 用
 	respond /internal/* 404
-	reverse_proxy lumee-app:80
+	reverse_proxy ${MS_PROJECT}-app:80 {
+		lb_try_duration 10s
+	}
 }

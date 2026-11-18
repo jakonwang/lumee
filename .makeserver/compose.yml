@@ -26,7 +26,7 @@ services:
     networks:
       default: {}
       web:
-        aliases: [lumee-app]
+        aliases: [${MS_PROJECT}-app]
 
   queue:
     <<: *app
@@ -45,7 +45,7 @@ services:
     restart: unless-stopped
     networks:
       web:
-        aliases: [lumee-admin]
+        aliases: [${MS_PROJECT}-admin]
 
   mysql:
     image: mysql:8.4

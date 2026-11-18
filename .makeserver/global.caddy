@@ -1,5 +1,5 @@
-# 写到服务器 /srv/edge/global.d/lumee.caddy，放进入口 Caddy 的全局选项里。
-# 一台服务器只能有一个 on_demand_tls，用到它的项目只能有一个。
+# 写到服务器 /srv/edge/global.d/<实例>.caddy，放进入口 Caddy 的全局选项里。
+# 一台服务器只能有一个 on_demand_tls，所以只有生产环境用它（预发布见 global.staging.caddy）。
 on_demand_tls {
-	ask http://lumee-app:80/internal/tls/ask?token=${LUMEE_TLS_ASK_TOKEN}
+	ask http://${MS_PROJECT}-app:80/internal/tls/ask?token=${LUMEE_TLS_ASK_TOKEN}
 }

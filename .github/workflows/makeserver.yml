@@ -1,23 +1,59 @@
-# 由 makeserver 生成（ms ci init lumee）。push 到 main 后：构建镜像 → 推到 GitHub 镜像仓库 → 自动部署到服务器
+# 由 makeserver 生成（ms ci init lumee），重新生成会覆盖。
+#   push 到 main / dev：构建镜像 → 推到 ghcr.io → 部署到对应实例
+#   手机：GitHub App → 仓库 → Actions → makeserver → Run workflow，可以部署、回滚、重启
 # 自动部署需要先在本机执行一次：ms ci setup lumee
 name: makeserver
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
+    inputs:
+      target:
+        description: 实例
+        type: choice
+        options: [lumee, lumee-staging]
+      action:
+        description: 操作
+        type: choice
+        default: deploy
+        options: [deploy, rollback, restart]
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: makeserver-${{ github.ref }}
+  group: makeserver-${{ github.ref }}-${{ inputs.target }}
   cancel-in-progress: false
 
 jobs:
-  build:
+  route:
     runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.r.outputs.target }}
+      key: ${{ steps.r.outputs.key }}
+    steps:
+      - id: r
+        name: 选择实例
+        run: |
+          if [ -n "${{ inputs.target }}" ]; then
+            TARGET="${{ inputs.target }}"
+          else
+            case "$GITHUB_REF_NAME" in
+              main) TARGET=lumee ;;
+              dev) TARGET=lumee-staging ;;
+            esac
+          fi
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "key=$(echo "$TARGET" | tr 'a-z-' 'A-Z_')" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: route
+    if: github.event_name == 'push' || inputs.action == 'deploy'
+    runs-on: ubuntu-latest
+    env:
+      TARGET_KEY: ${{ needs.route.outputs.key }}
     strategy:
       # 一个镜像失败时，其他镜像继续构建，方便一次看到所有问题
       fail-fast: false
@@ -51,16 +87,25 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
   deploy:
-    needs: build
-    if: vars.MS_AUTO_DEPLOY == 'true'
+    needs: [route, build]
+    if: always() && needs.route.outputs.target != '' && (needs.build.result == 'success' || needs.build.result == 'skipped') && vars.MS_AUTO_DEPLOY == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: 部署到服务器
+      - name: 在服务器上执行
         env:
           SSH_KEY: ${{ secrets.MS_DEPLOY_KEY }}
-          HOST: ${{ secrets.MS_DEPLOY_HOST }}
-          PORT: ${{ secrets.MS_DEPLOY_PORT }}
+          HOST: ${{ secrets[format('MS_HOST_{0}', needs.route.outputs.key)] }}
+          PORT: ${{ secrets[format('MS_PORT_{0}', needs.route.outputs.key)] }}
+          TARGET: ${{ needs.route.outputs.target }}
+          ACTION: ${{ inputs.action || 'deploy' }}
+          ACTOR: ${{ github.actor }}
         run: |
+          if [ -z "$HOST" ]; then echo "没有 $TARGET 的服务器地址：在本机执行 ms ci setup lumee"; exit 1; fi
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
-          ssh -i ~/.ssh/deploy -p "${PORT:-22}" -o StrictHostKeyChecking=accept-new "root@$HOST" "redeploy lumee ${GITHUB_SHA::7}"
+          case "$ACTION" in
+            deploy) CMD="redeploy $TARGET ${GITHUB_SHA::7} $ACTOR" ;;
+            rollback) CMD="rollback $TARGET $ACTOR" ;;
+            restart) CMD="restart $TARGET $ACTOR" ;;
+          esac
+          ssh -i ~/.ssh/deploy -p "${PORT:-22}" -o StrictHostKeyChecking=accept-new "root@$HOST" "$CMD"

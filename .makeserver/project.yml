@@ -65,3 +65,28 @@ restore:
     - dc exec -T mysql sh -c 'until mysqladmin ping -h127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent; do sleep 2; done'
     - dc exec -T mysql sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD"' < db.sql
     - rm -f db.sql
+
+# 滚动更新：这些服务先起新容器、健康后再停旧容器，更新时网站不中断
+rolling:
+  - app
+  - admin
+
+# 内存上限（防止一个项目把 2G 小服务器吃光，超了只重启这个容器）
+limits:
+  app: 512m
+  queue: 256m
+  scheduler: 192m
+  admin: 64m
+  mysql: 512m
+
+# 数据库（ms db pull 拉到本地、ms db open 打开网页管理）
+database:
+  type: mysql
+  service: mysql
+  name_var: DB_DATABASE
+  root_password_var: DB_ROOT_PASSWORD
+
+# 预发布实例（config.yml 里 env: staging）只解析自己的两个域名，不碰生产的 CNAME 目标
+dns_staging:
+  - ${LUMEE_STOREFRONT_DOMAIN}
+  - ${LUMEE_ADMIN_HOST}

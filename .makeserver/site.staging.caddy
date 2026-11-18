@@ -1,0 +1,25 @@
+# Lumée 预发布站点：只用固定域名，不接商家自定义域名（不占用 https:// 兜底，也不用按需证书）
+# 店铺子域名用通配：在 secrets/lumee-staging.env 里把 LUMEE_STOREFRONT_DOMAIN 设成例如 staging.lumee.shop，
+# 预发布的测试店铺只用 staging.lumee.shop 本身和下面列出的固定地址访问。
+
+${LUMEE_ADMIN_HOST} {
+	encode zstd gzip
+	@api path /api/* /sanctum/*
+	handle @api {
+		reverse_proxy ${MS_PROJECT}-app:80 {
+			lb_try_duration 10s
+		}
+	}
+	handle {
+		reverse_proxy ${MS_PROJECT}-admin:80 {
+			lb_try_duration 10s
+		}
+	}
+}
+
+${LUMEE_STOREFRONT_DOMAIN} {
+	respond /internal/* 404
+	reverse_proxy ${MS_PROJECT}-app:80 {
+		lb_try_duration 10s
+	}
+}
