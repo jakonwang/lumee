@@ -1,0 +1,47 @@
+# Lumée — Caddy in front of Laravel (php-fpm), with automatic HTTPS for
+# every store: free subdomains and merchants' custom domains.
+# See docs/https.md. Replace lumee.shop / paths with your own.
+
+{
+	email ops@lumee.shop   # Let's Encrypt account / expiry notices
+
+	# Before getting a certificate for an unknown host, Caddy asks Laravel.
+	# Only verified custom domains (on a plan that allows them) and existing
+	# store subdomains get a 200. Loopback callers are trusted; if Laravel
+	# runs on another machine, add ?token=<LUMEE_TLS_ASK_TOKEN>.
+	on_demand_tls {
+		ask http://127.0.0.1:8080/internal/tls/ask
+	}
+}
+
+# Internal listener used only by the "ask" check above (not reachable from outside)
+http://127.0.0.1:8080 {
+	root * /var/www/lumee/backend/public
+	php_fastcgi unix//run/php/php8.2-fpm.sock
+}
+
+# Platform site + every storefront host
+https:// {
+	tls {
+		on_demand
+	}
+
+	# The ask endpoint is for Caddy only
+	respond /internal/* 404
+
+	root * /var/www/lumee/backend/public
+	encode zstd gzip
+
+	@static path /build/* /storage/* /favicon.ico /robots.txt
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	php_fastcgi unix//run/php/php8.2-fpm.sock
+	file_server
+}
+
+# Merchant admin (Vue SPA build)
+admin.lumee.shop {
+	root * /var/www/lumee/admin/dist
+	try_files {path} /index.html
+	file_server
+}

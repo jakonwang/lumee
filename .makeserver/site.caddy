@@ -1,0 +1,27 @@
+# Lumée 站点（ms deploy 把 ${变量} 换成 secrets/lumee.env 里的值后，写到服务器 /srv/edge/sites/lumee.caddy）
+
+# 商家后台：页面来自 admin 容器，/api 转给 Laravel
+${LUMEE_ADMIN_HOST} {
+	encode zstd gzip
+	handle /api/* {
+		reverse_proxy lumee-app:80
+	}
+	handle /sanctum/* {
+		reverse_proxy lumee-app:80
+	}
+	handle {
+		reverse_proxy lumee-admin:80
+	}
+}
+
+# 平台首页 + 所有店铺（免费子域名、商家自定义域名）。
+# 没有被其他站点占用的域名都会进到这里，证书按需签发：签之前先问 Laravel 是否允许（见 global.caddy）。
+# 注意：一台服务器上只能有一个项目使用 https:// 兜底站点。
+https:// {
+	tls {
+		on_demand
+	}
+	# 签证书的询问接口只给 Caddy 用
+	respond /internal/* 404
+	reverse_proxy lumee-app:80
+}

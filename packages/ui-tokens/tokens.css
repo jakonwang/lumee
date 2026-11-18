@@ -1,0 +1,51 @@
+/*
+ * Lumée platform design tokens — merchant admin, login, platform website.
+ * Green & white: white surfaces, green only as the accent (buttons, links, selection).
+ *
+ * (Storefront themes have their own tokens: backend/public/css/lumee-tokens.css + per-store theme colors.)
+ */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  /* Brand green */
+  --brand-800: #075E40;
+  --brand-700: #0A7350;      /* text links, hover on primary */
+  --brand-600: #0E8A5F;      /* primary buttons (white text ≥ 4.5:1) */
+  --brand-500: #14A06E;      /* icons, focus rings */
+  --brand-300: #9BD9BD;
+  --brand-100: #E3F5EC;      /* selected rows / active menu */
+  --brand-50:  #F2FAF6;      /* subtle fills */
+
+  /* Surfaces — mostly white */
+  --bg: #F7F9F8;
+  --surface: #FFFFFF;
+  --surface-muted: #F2F5F3;
+  --border: #E5EAE7;
+
+  /* Accents are tints of the brand green (no extra hues) */
+  --accent-1: #14A06E;
+  --accent-2: #9BD9BD;
+  --accent-3: #0A7350;
+  --accent-4: #CDEBDD;
+
+  /* Text */
+  --ink: #1C2621;
+  --ink-muted: #6B7770;
+
+  /* Status */
+  --success: #14A06E;
+  --warning: #D9921C;
+  --danger:  #D64545;
+
+  /* Effects */
+  --gradient-brand: #0E8A5F;   /* solid — kept as a token so buttons can share it */
+  --gradient-soft: radial-gradient(circle at 50% 0%, #E3F5EC 0%, rgba(255,255,255,0) 70%);
+  --shadow-soft: 0 1px 3px rgba(16, 24, 20, 0.06);
+  --radius-card: 12px;
+  --radius-pill: 999px;
+
+  /* Type */
+  --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-body: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --tracking-wide: 0.14em;
+}

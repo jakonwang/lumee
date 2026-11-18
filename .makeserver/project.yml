@@ -1,0 +1,67 @@
+# makeserver 部署规范：Lumée
+# Laravel 12 后端（店铺前台 + API）+ Vue 管理后台 + MySQL + 队列 + 定时任务
+# 字段说明见 makeserver/docs/部署规范.md
+name: lumee
+
+# 镜像在哪构建：
+#   ci     = push 到 GitHub 后由 Actions 构建并推到镜像仓库，服务器只拉镜像（推荐，小内存服务器必选）
+#   server = 把源码传到服务器上构建（项目还没上 GitHub 时用）
+build: ci
+
+# Actions 要构建的镜像：名字 → Dockerfile（构建上下文都是仓库根目录）
+images:
+  app: .makeserver/docker/app.Dockerfile
+  admin: .makeserver/docker/admin.Dockerfile
+
+# build: server 时打包哪些文件（git 仓库只打包已提交的文件；不是 git 仓库就按 exclude 排除）
+source:
+  exclude:
+    - "**/node_modules"
+    - backend/vendor
+    - backend/.env
+    - backend/storage
+    - backend/public/build
+    - backend/public/storage
+    - admin/dist
+    - tools
+
+# 服务器 /srv/apps/lumee/shared/ 下长期保留的目录（部署、回滚都不动）
+shared_dirs:
+  - storage
+  - mysql
+
+# 容器启动后执行。dc = 本项目的 docker compose，工作目录是 shared/
+hooks:
+  after_up:
+    - dc exec -T app php artisan migrate --force
+
+# 部署后检查这些地址（${变量} 取自生产环境变量）
+checks:
+  - https://${LUMEE_STOREFRONT_DOMAIN}/up
+  - https://${LUMEE_ADMIN_HOST}/
+
+# ms dns sync：把这些域名的 A 记录指向项目所在服务器
+dns:
+  - ${LUMEE_STOREFRONT_DOMAIN}
+  - www.${LUMEE_STOREFRONT_DOMAIN}
+  - "*.${LUMEE_STOREFRONT_DOMAIN}"
+  - ${LUMEE_ADMIN_HOST}
+  - ${LUMEE_CNAME_TARGET}
+
+backup:
+  # 先导出数据库，再把 paths（相对 shared/）打包
+  before:
+    - dc exec -T mysql sh -c 'exec mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines --databases "$MYSQL_DATABASE"' > db.sql
+  paths:
+    - db.sql
+    - storage
+  after:
+    - rm -f db.sql
+
+restore:
+  # 备份解压回 shared/ 之后执行
+  after:
+    - dc up -d mysql
+    - dc exec -T mysql sh -c 'until mysqladmin ping -h127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent; do sleep 2; done'
+    - dc exec -T mysql sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD"' < db.sql
+    - rm -f db.sql

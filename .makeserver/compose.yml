@@ -1,0 +1,73 @@
+# Lumée 服务编排（makeserver 规范）
+# 服务器上的位置：/srv/apps/lumee/releases/<发布号>/.makeserver/compose.yml，构建上下文 .. = 仓库根目录
+# MS_REGISTRY / MS_TAG / MS_SHARED 由 makeserver 设置；其他 ${变量} 来自 shared/.env
+
+x-app: &app
+  image: ${MS_REGISTRY}lumee-app:${MS_TAG}
+  restart: unless-stopped
+  env_file: ${MS_SHARED}/.env
+  environment:
+    DB_HOST: mysql
+    DB_PORT: "3306"
+    TRUSTED_PROXIES: "*"
+  volumes:
+    - ${MS_SHARED}/storage:/app/storage
+  depends_on:
+    mysql:
+      condition: service_healthy
+
+services:
+  # 网站 + API（FrankenPHP，容器内 80 端口）
+  app:
+    <<: *app
+    build:
+      context: ..
+      dockerfile: .makeserver/docker/app.Dockerfile
+    networks:
+      default: {}
+      web:
+        aliases: [lumee-app]
+
+  queue:
+    <<: *app
+    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--max-time=3600"]
+
+  scheduler:
+    <<: *app
+    command: ["php", "artisan", "schedule:work"]
+
+  # 商家后台（静态 SPA）
+  admin:
+    image: ${MS_REGISTRY}lumee-admin:${MS_TAG}
+    build:
+      context: ..
+      dockerfile: .makeserver/docker/admin.Dockerfile
+    restart: unless-stopped
+    networks:
+      web:
+        aliases: [lumee-admin]
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    command:
+      - --performance-schema=OFF
+      - --innodb-buffer-pool-size=128M
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ${MS_SHARED}/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+networks:
+  web:
+    external: true

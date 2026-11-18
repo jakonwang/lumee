@@ -1,0 +1,17 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+.display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: lining-nums; }
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--brand-500);
+}
+.page-title { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 4px; font-variant-numeric: lining-nums; }
+.page-sub { color: var(--ink-muted); margin: 0 0 24px; font-size: 14px; }

@@ -1,0 +1,46 @@
+/* Storefront theme (Aurora) base tokens. The platform admin/website use platform-tokens.css. */
+/* Lumée design tokens — shared by admin, storefront themes and website */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&family=Noto+Serif+SC:wght@500;600&display=swap');
+
+:root {
+  /* Rose gold (primary) */
+  --rose-gold-700: #8A6655;
+  --rose-gold-600: #9D7765;
+  --rose-gold-500: #B08A78;
+  --rose-gold-300: #D6BCAE;
+  --rose-gold-100: #F3E9E3;
+  --rose-gold-50:  #FAF5F2;
+
+  /* Surfaces */
+  --ivory: #FDFBF9;
+  --surface: #FFFFFF;
+  --surface-muted: #F7F2EF;
+  --border: #EADFD8;
+
+  /* Gem accents */
+  --gem-lavender: #C9B4E8;
+  --gem-blush:    #F2B5BC;
+  --gem-aqua:     #9FD8E0;
+  --gem-citrine:  #F2E19B;
+
+  /* Text */
+  --ink: #3E3330;
+  --ink-muted: #8C7F79;
+
+  /* Status */
+  --success: #5FA8A0;
+  --warning: #D4A64A;
+  --danger:  #C9707A;
+
+  /* Effects */
+  --gradient-gem: linear-gradient(135deg, #C9B4E8 0%, #F2B5BC 35%, #9FD8E0 70%, #F2E19B 100%);
+  --gradient-metal: linear-gradient(180deg, #C9A391 0%, #A97F6C 100%);
+  --shadow-soft: 0 4px 20px rgba(176, 138, 120, 0.12);
+  --radius-card: 12px;
+  --radius-pill: 999px;
+
+  /* Type */
+  --font-display: 'Cormorant Garamond', 'Noto Serif SC', serif;
+  --font-body: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --tracking-wide: 0.3em;
+}
