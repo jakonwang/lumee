@@ -232,6 +232,25 @@ Route::prefix('admin')->group(function () {
 
             Route::middleware('perm:customers')->group(function () {
                 Route::get('customers', [CustomerController::class, 'index']);
+                // Lead finder (获客雷达)
+                $lf = \App\Http\Controllers\Admin\LeadController::class;
+                Route::get('lead-finder/meta', [$lf, 'meta']);
+                Route::put('lead-finder/settings', [$lf, 'settings'])->middleware('throttle:30,1');
+                Route::get('lead-searches', [$lf, 'searches']);
+                Route::post('lead-searches', [$lf, 'createSearch'])->middleware('throttle:20,1');
+                Route::post('lead-searches/import', [$lf, 'importSites'])->middleware('throttle:20,1');
+                Route::get('lead-searches/{id}', [$lf, 'showSearch'])->whereNumber('id');
+                Route::delete('lead-searches/{id}', [$lf, 'destroySearch'])->whereNumber('id');
+                Route::get('leads', [$lf, 'index']);
+                Route::get('leads/export', [$lf, 'export'])->middleware('throttle:imports');
+                Route::post('leads/bulk', [$lf, 'bulk']);
+                Route::get('leads/{id}', [$lf, 'show'])->whereNumber('id');
+                Route::patch('leads/{id}', [$lf, 'update'])->whereNumber('id');
+                Route::post('leads/{id}/activities', [$lf, 'addActivity'])->whereNumber('id');
+                Route::post('leads/{id}/recheck', [$lf, 'recheck'])->whereNumber('id')->middleware('throttle:60,1');
+                Route::post('leads/{id}/analyze', [$lf, 'analyze'])->whereNumber('id')->middleware('throttle:60,1');
+                Route::post('leads/{id}/outreach', [$lf, 'outreach'])->whereNumber('id')->middleware('throttle:60,1');
+                Route::post('leads/{id}/convert', [$lf, 'convert'])->whereNumber('id');
                 Route::get('customers/tags', [CustomerController::class, 'tags']);
                 Route::get('customers/export', [CustomerController::class, 'export'])->middleware('throttle:imports');
                 Route::post('customers/bulk-tags', [CustomerController::class, 'bulkTags']);

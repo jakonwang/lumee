@@ -73,4 +73,8 @@ return [
         ],
     ],
 
+    // Lead finder: platform-wide fallbacks when a store hasn't set its own key
+    'google_places' => ['key' => env('GOOGLE_PLACES_KEY')],
+    'anthropic' => ['key' => env('ANTHROPIC_API_KEY')],
+
 ];

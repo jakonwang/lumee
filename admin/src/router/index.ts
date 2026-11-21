@@ -24,6 +24,7 @@ export const router = createRouter({
         { path: 'orders/:id', name: 'order', component: () => import('@/views/orders/OrderDetailView.vue'), meta: { perm: 'orders', title: t('订单详情'), menu: 'orders' } },
         { path: 'customers', name: 'customers', component: () => import('@/views/CustomerListView.vue'), meta: { perm: 'customers', title: t('客户') } },
         { path: 'customers/companies', name: 'companies', component: () => import('@/views/customers/CompaniesView.vue'), meta: { perm: 'customers', title: t('公司') } },
+        { path: 'leads', name: 'leads', component: () => import('@/views/leads/LeadFinderView.vue'), meta: { perm: 'customers', title: t('获客雷达') } },
         { path: 'customers/quotes', name: 'quotes', component: () => import('@/views/customers/QuotesView.vue'), meta: { perm: 'customers', title: t('询价单') } },
         { path: 'customers/:id(\\d+)', name: 'customer', component: () => import('@/views/CustomerDetailView.vue'), meta: { perm: 'customers', title: t('客户详情'), menu: 'customers' } },
         { path: 'marketing/affiliates', name: 'affiliates', component: () => import('@/views/marketing/AffiliatesView.vue'), meta: { perm: 'marketing', title: t('营销 · 联盟营销') } },

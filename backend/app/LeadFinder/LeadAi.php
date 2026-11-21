@@ -1,0 +1,167 @@
+<?php
+
+namespace App\LeadFinder;
+
+use Anthropic\Client;
+use Anthropic\Core\Exceptions\APIConnectionException;
+use Anthropic\Core\Exceptions\APIStatusException;
+use Anthropic\Core\Exceptions\AuthenticationException;
+use Anthropic\Core\Exceptions\RateLimitException;
+use App\Models\Lead;
+use App\Models\Store;
+use RuntimeException;
+
+/**
+ * Claude-powered lead work: judge how well a prospect fits the merchant's product (with reasons
+ * in Chinese), and write a personalised first-contact email in the prospect's language.
+ */
+class LeadAi
+{
+    public const MODEL = 'claude-opus-5-5';
+
+    private const LANG_NAMES = ['en' => 'English', 'es' => 'Spanish', 'pt' => 'Portuguese', 'de' => 'German', 'fr' => 'French', 'it' => 'Italian',
+        'nl' => 'Dutch', 'pl' => 'Polish', 'tr' => 'Turkish', 'ru' => 'Russian', 'id' => 'Indonesian', 'vi' => 'Vietnamese', 'ar' => 'Arabic'];
+
+    public static function ready(Store $store): bool
+    {
+        return LeadSettings::anthropicKey($store) !== null;
+    }
+
+    /** @return array{fit: int, segment: string, summary: string, reasons: string[]} */
+    public function analyze(Store $store, Lead $lead): array
+    {
+        $profile = LeadProfiles::get($lead->search?->industry ?? 'custom');
+        $sender = LeadSettings::sender($store);
+        $product = trim(($sender['products'] ?: $profile['pitch']) ?: ($lead->search ? implode(', ', $lead->search->keywords) : ''));
+
+        $prompt = "We are a manufacturer looking for B2B buyers. Our products: {$product}.\n"
+            ."Judge whether the business below is a likely buyer (wholesaler/distributor/importer, repair shop, retailer, e-commerce seller or brand that would purchase our products).\n\n"
+            .$this->describe($lead)
+            ."\n\nReturn JSON. fit: 0-100 (90+ = clearly sells/uses exactly our product category and buys in volume; 60-89 = sells closely related products; 30-59 = possible but unclear; <30 = unrelated). "
+            .'segment: one of wholesale, repair, ecommerce, retail, brand, other. summary: one sentence in Simplified Chinese describing what this business does. '
+            .'reasons: 2-4 short reasons in Simplified Chinese (evidence from their listing/site, e.g. 官网有批发页面, 主营手机配件). Base everything only on the information given.';
+
+        $data = $this->json($store, $prompt, [
+            'type' => 'object',
+            'properties' => [
+                'fit' => ['type' => 'integer'],
+                'segment' => ['type' => 'string', 'enum' => ['wholesale', 'repair', 'ecommerce', 'retail', 'brand', 'other']],
+                'summary' => ['type' => 'string'],
+                'reasons' => ['type' => 'array', 'items' => ['type' => 'string']],
+            ],
+            'required' => ['fit', 'segment', 'summary', 'reasons'],
+            'additionalProperties' => false,
+        ], 'low', 4000);
+
+        return [
+            'fit' => max(0, min(100, (int) $data['fit'])),
+            'segment' => $data['segment'],
+            'summary' => mb_substr((string) $data['summary'], 0, 300),
+            'reasons' => array_slice(array_map(fn ($r) => mb_substr((string) $r, 0, 80), (array) $data['reasons']), 0, 4),
+        ];
+    }
+
+    /** @return array{language: string, subject: string, body: string, subject_zh: string, body_zh: string} */
+    public function outreach(Store $store, Lead $lead, ?string $language = null): array
+    {
+        $profile = LeadProfiles::get($lead->search?->industry ?? 'custom');
+        $s = LeadSettings::sender($store);
+        $language = $language ?: (LeadProfiles::countries()[$lead->country]['lang'] ?? 'en');
+        $langName = self::LANG_NAMES[$language] ?? 'English';
+        $me = collect([
+            'Company' => $s['company'], 'Sender name' => $s['name'], 'Sender title' => $s['title'],
+            'Products' => $s['products'] ?: $profile['pitch'], 'Strengths' => $s['advantages'], 'MOQ / terms' => $s['moq'],
+            'Website' => $s['website'], 'WhatsApp' => $s['whatsapp'], 'Email' => $s['email'],
+        ])->filter()->map(fn ($v, $k) => "$k: $v")->implode("\n");
+
+        $prompt = "Write a short first-contact B2B email from a manufacturer to a potential buyer.\n\nSENDER (us):\n{$me}\n\nRECIPIENT:\n".$this->describe($lead)
+            ."\n\nRules: write in {$langName}. 90-150 words. Open with one specific, true detail about the recipient's business taken from the information above (no flattery, nothing invented). "
+            .'Say in one or two sentences what we make and why it fits them (their customer type). Offer one low-friction next step (free samples, catalog and price list, or a quick WhatsApp chat). '
+            .'Plain text, no markdown, no placeholders in brackets — if a sender detail is missing, leave it out. Sign off with the sender name and company. '
+            .'Subject line: under 8 words, specific, not salesy. Also give a Simplified Chinese translation of the subject and body so the sender can check it.';
+
+        $data = $this->json($store, $prompt, [
+            'type' => 'object',
+            'properties' => ['subject' => ['type' => 'string'], 'body' => ['type' => 'string'], 'subject_zh' => ['type' => 'string'], 'body_zh' => ['type' => 'string']],
+            'required' => ['subject', 'body', 'subject_zh', 'body_zh'],
+            'additionalProperties' => false,
+        ], 'medium', 8000);
+
+        return ['language' => $language, ...array_map(fn ($v) => trim((string) $v), $data)];
+    }
+
+    /** No AI key: a solid English template filled with what we know. */
+    public static function templateOutreach(Store $store, Lead $lead): array
+    {
+        $s = LeadSettings::sender($store);
+        $profile = LeadProfiles::get($lead->search?->industry ?? 'custom');
+        $products = $s['products'] ?: ($profile['pitch'] ? 'phone screen protectors (tempered glass, hydrogel, privacy film)' : 'our products');
+        $segmentLine = match ($lead->segment) {
+            'wholesale' => 'As a distributor, you can count on factory-direct pricing, stable stock and OEM / private-label packaging.',
+            'repair' => 'Repair shops like yours usually need reliable, easy-to-install protectors for the most popular models — we keep them in stock.',
+            'ecommerce' => 'For online sellers we offer retail-ready packaging, product photos and fast restocking.',
+            default => 'We supply retailers with factory-direct pricing, retail-ready packaging and fast delivery.',
+        };
+        $body = "Hi {$lead->name} team,\n\n"
+            ."I came across {$lead->name}".($lead->city ? " in {$lead->city}" : '')." and thought you might be interested in {$products}.\n\n"
+            .$segmentLine.($s['advantages'] ? ' '.$s['advantages'] : '').($s['moq'] ? " MOQ: {$s['moq']}." : '')."\n\n"
+            ."Would you like our catalog and price list, or a few free samples to test the quality?\n\n"
+            ."Best regards,\n".trim(($s['name'] ?: '')."\n".$s['company'])
+            .($s['website'] ? "\n".$s['website'] : '').($s['whatsapp'] ? "\nWhatsApp: ".$s['whatsapp'] : '');
+
+        return ['language' => 'en', 'subject' => 'Factory-direct '.(str_contains($products, 'protector') ? 'screen protectors' : 'supply').' for '.$lead->name,
+            'body' => $body, 'subject_zh' => '', 'body_zh' => ''];
+    }
+
+    private function describe(Lead $lead): string
+    {
+        return collect([
+            'Name' => $lead->name, 'Listing category' => $lead->category,
+            'Location' => trim(implode(', ', array_filter([$lead->city, LeadProfiles::countries()[$lead->country]['en'] ?? $lead->country]))),
+            'Website' => $lead->website, 'Google rating' => $lead->rating ? "{$lead->rating} ({$lead->reviews_count} reviews)" : null,
+            'Site platform' => $lead->signals ? implode(', ', $lead->signals) : null,
+            'Site description' => $lead->summary, 'Site text (excerpt)' => $lead->site_text ? mb_substr($lead->site_text, 0, 2500) : null,
+        ])->filter()->map(fn ($v, $k) => "$k: $v")->implode("\n");
+    }
+
+    private function json(Store $store, string $prompt, array $schema, string $effort, int $maxTokens): array
+    {
+        $key = LeadSettings::anthropicKey($store);
+        if (! $key) {
+            throw new RuntimeException('还没有配置 AI（Claude API Key）');
+        }
+        try {
+            $client = new Client(apiKey: $key);
+            $message = $client->beta->messages->create(
+                model: self::MODEL,
+                maxTokens: $maxTokens,
+                messages: [['role' => 'user', 'content' => $prompt]],
+                outputConfig: ['effort' => $effort, 'format' => ['type' => 'json_schema', 'schema' => $schema]],
+                fallbacks: 'default',
+                betas: ['server-side-fallback-2026-07-01'],
+            );
+        } catch (AuthenticationException) {
+            throw new RuntimeException('Claude API Key 无效，请在获客设置里检查');
+        } catch (RateLimitException) {
+            throw new RuntimeException('AI 请求太频繁，请稍后再试');
+        } catch (APIStatusException $e) {
+            throw new RuntimeException('AI 服务报错：'.mb_substr($e->getMessage(), 0, 160));
+        } catch (APIConnectionException) {
+            throw new RuntimeException('连接不上 AI 服务，请检查服务器网络');
+        }
+
+        $stop = $message->stopReason instanceof \BackedEnum ? $message->stopReason->value : $message->stopReason;
+        if ($stop === 'refusal') {
+            throw new RuntimeException('AI 拒绝处理这条线索');
+        }
+        foreach ($message->content as $block) {
+            if ($block->type === 'text') {
+                $data = json_decode($block->text, true);
+                if (is_array($data)) {
+                    return $data;
+                }
+            }
+        }
+        throw new RuntimeException('AI 返回内容无法解析，请重试');
+    }
+}

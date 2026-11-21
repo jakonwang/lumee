@@ -145,7 +145,11 @@ async function saveSettings() {
 const storefront = computed(() => useAuth().currentStore?.storefront_url ?? '')
 
 watch(tab, (v) => { if (v === 'applications' && !apps.value) loadApps() })
-onMounted(() => { load(); if (tab.value === 'applications') loadApps() })
+onMounted(() => {
+  load()
+  if (tab.value === 'applications') loadApps()
+  if (route.query.open) openCompany({ id: Number(route.query.open) } as Company)   // e.g. arriving from the lead finder
+})
 </script>
 
 <template>

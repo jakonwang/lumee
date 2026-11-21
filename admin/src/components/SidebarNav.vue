@@ -4,7 +4,7 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { NIcon } from 'naive-ui'
 import {
   HomeOutline, ReceiptOutline, PricetagOutline, PeopleOutline, TicketOutline, MegaphoneOutline,
-  BarChartOutline, StorefrontOutline, SettingsOutline, AppsOutline,
+  BarChartOutline, StorefrontOutline, SettingsOutline, AppsOutline, LocateOutline,
 } from '@vicons/ionicons5'
 import { useAuth } from '@/stores/auth'
 import { t } from '@/i18n'
@@ -28,6 +28,7 @@ const main: Section[] = [
     children: [{ name: 'collections', label: t('商品分类') }, { name: 'reviews', label: t('评论') }, { name: 'gift-cards', label: t('礼品卡') }, { name: 'price-lists', label: t('批发价') }],
   },
   { key: 'customers', label: t('客户'), icon: PeopleOutline, to: 'customers', perm: 'customers', children: [{ name: 'companies', label: t('公司') }, { name: 'quotes', label: t('询价单') }, { name: 'privacy-requests', label: t('隐私请求') }] },
+  { key: 'leads', label: t('获客雷达'), icon: LocateOutline, to: 'leads', perm: 'customers' },
   { key: 'discounts', label: t('折扣'), icon: TicketOutline, to: 'marketing', perm: 'marketing', children: [{ name: 'promotions', label: t('自动折扣') }] },
   { key: 'marketing', label: t('营销'), icon: MegaphoneOutline, to: 'campaigns', perm: 'marketing', children: [{ name: 'flows', label: t('自动化') }, { name: 'affiliates', label: t('联盟营销') }, { name: 'loyalty', label: t('积分') }, { name: 'settings-tracking', label: t('追踪代码') }] },
   { key: 'analytics', label: t('数据分析'), icon: BarChartOutline, to: 'analytics', perm: 'analytics' },

@@ -49,6 +49,16 @@
    2. 在 php.ini 中设置 `curl.cainfo` 和 `openssl.cafile`，都指向这个文件；
    3. 重启 PHP。
 
+## 获客雷达（找潜在 B2B 客户）
+
+后台左侧菜单「获客雷达」，代码在 `backend/app/LeadFinder/`。流程：搜索地图商家 → 读取对方官网公开的邮箱 / 电话 / WhatsApp / 社交账号 → 按匹配度打分（0–100，A/B/C/D）→ 生成开发信 → 跟进，或转为 B2B 公司。
+
+- **数据来源**：Google 地图 Places API (New)（推荐，需要 API Key，按调用次数收费）；OpenStreetMap（免费，数据较少；Overpass 服务连不上时会自动改用 Nominatim）。
+- **AI**：填写 Claude API Key 后，会读对方官网判断客户类型和匹配度，并用当地语言写开发信（附中文翻译）。不填时用规则打分和英文模板。
+- **Key 的配置**：每个店铺在「获客雷达 › 设置」里填写（加密保存）；也可以在 `.env` 里配置平台统一的 `GOOGLE_PLACES_KEY`、`ANTHROPIC_API_KEY`，店铺没填时使用。
+- 搜索在**队列**里运行，需要 `php artisan queue:work`。
+- 运营商门店和大型连锁（T-Mobile、Verizon、Best Buy 等）会自动过滤掉，因为它们统一由总部采购。开启了防爬虫保护的网站不会去绕过，只记录为“未能读取”。
+
 ## 后台导航
 
 左侧菜单（`admin/src/components/SidebarNav.vue`）采用常见 SaaS 后台的做法：
