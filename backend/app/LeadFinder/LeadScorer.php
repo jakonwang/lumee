@@ -54,12 +54,16 @@ class LeadScorer
 
         // ── Reach ──
         $reach = 0;
-        $emails = $lead->emails ?? [];
+        $checks = $lead->email_checks ?? [];
         $domain = $lead->domain;
-        if ($emails) {
-            $own = $domain && collect($emails)->contains(fn ($e) => str_ends_with($e, '@'.$domain));
+        $real = array_values(array_filter($lead->emails ?? [], fn ($e) => ! ($checks[$e]['guessed'] ?? false) && ($checks[$e]['mx'] ?? true)));
+        if ($real) {
+            $own = $domain && collect($real)->contains(fn ($e) => str_ends_with($e, '@'.$domain));
             $reach += $own ? 13 : 10;
-            $reasons[] = $own ? '有企业邮箱' : '有联系邮箱';
+            $reasons[] = ($own ? '有企业邮箱' : '有联系邮箱').(isset($checks[$real[0]]) ? '（域名可收信）' : '');
+        } elseif ($lead->emails) {
+            $reach += 5;
+            $reasons[] = '推测邮箱 '.$lead->emails[0].'（官网未公开，域名可收信）';
         }
         if ($lead->phone || $lead->phones) {
             $reach += 6;

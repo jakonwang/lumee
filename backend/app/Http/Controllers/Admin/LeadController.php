@@ -19,6 +19,7 @@ use App\Tenancy\CurrentStore;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -28,6 +29,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /** Customers › Lead finder (获客雷达): search for B2B buyers, enrich, score, and work the pipeline. */
 class LeadController extends Controller
 {
+    /** A guessed inbox only exists when no real one was found, so "has a guessed flag" = "only a guess". */
+    private const NOT_GUESSED = "COALESCE(email_checks, '') NOT LIKE '%\"guessed\": true%'";
+
     // ── Setup ──
 
     public function meta(CurrentStore $current): JsonResponse
@@ -65,6 +69,21 @@ class LeadController extends Controller
         LeadSettings::save($current->getOrFail(), $data);
 
         return response()->json(['settings' => LeadSettings::public($current->getOrFail()->fresh())]);
+    }
+
+    /** One sentence → a search the merchant can review and start. */
+    public function plan(Request $request, CurrentStore $current, LeadAi $ai): JsonResponse
+    {
+        $data = $request->validate(['text' => ['required', 'string', 'min:4', 'max:500']]);
+        $store = $current->getOrFail();
+        if (! LeadAi::ready($store)) {
+            return response()->json(['message' => __('AI 拓客需要先在「获客设置」里填写 Claude API Key')], 422);
+        }
+        try {
+            return response()->json(['data' => $ai->plan($store, $data['text'])]);
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 
     // ── Searches ──
@@ -165,6 +184,17 @@ class LeadController extends Controller
         return response()->json([...$page->toArray(), 'stats' => $this->stats()]);
     }
 
+    /** Every filtered lead that has coordinates, for the map view. */
+    public function map(Request $request): JsonResponse
+    {
+        $rows = $this->filtered($request)->whereNotNull('lat')->whereNotNull('lng')->limit(3000)
+            ->get(['id', 'name', 'score', 'segment', 'status', 'lat', 'lng', 'city', 'country', 'emails', 'phone']);
+
+        return response()->json(['data' => $rows->map(fn (Lead $l) => ['id' => $l->id, 'name' => $l->name, 'score' => $l->score, 'segment' => $l->segment,
+            'status' => $l->status, 'lat' => $l->lat, 'lng' => $l->lng, 'city' => $l->city, 'country' => $l->country,
+            'has_email' => (bool) $l->emails, 'has_phone' => (bool) $l->phone])]);
+    }
+
     public function show(int $id): JsonResponse
     {
         $lead = Lead::with('search')->findOrFail($id);
@@ -189,6 +219,7 @@ class LeadController extends Controller
             'emails' => ['sometimes', 'array', 'max:10'],
             'emails.*' => ['email', 'max:120'],
             'segment' => ['sometimes', Rule::in(array_keys(LeadScorer::SEGMENT_LABELS))],
+            'next_follow_up_at' => ['sometimes', 'nullable', 'date'],
         ]);
         if (isset($data['status']) && $data['status'] !== $lead->status) {
             $this->log($lead, 'status', $data['status']);
@@ -196,7 +227,16 @@ class LeadController extends Controller
                 $data['contacted_at'] = now();
             }
         }
-        $lead->update($data);
+        if (! empty($data['next_follow_up_at'])) {
+            $this->log($lead, 'reminder', Carbon::parse($data['next_follow_up_at'])->toDateString());
+        }
+        $lead->fill($data);
+        if (array_key_exists('emails', $data)) {   // edited by hand: what's typed is real, check it again
+            $lead->email_checks = null;
+            app(LeadPipeline::class)->checkEmails($lead);
+            app(LeadPipeline::class)->score($lead);
+        }
+        $lead->save();
 
         return $this->show($id);
     }
@@ -354,14 +394,15 @@ class LeadController extends Controller
                 'A' => $q->where('score', '>=', 75), 'B' => $q->whereBetween('score', [55, 74]), 'C' => $q->whereBetween('score', [35, 54]), default => $q->where('score', '<', 35),
             })
             ->when($request->query('min_score'), fn ($q, $s) => $q->where('score', '>=', (int) $s))
-            ->when($request->boolean('has_email'), fn ($q) => $q->whereNotNull('emails')->whereRaw('JSON_LENGTH(emails) > 0'))
+            ->when($request->boolean('has_email'), fn ($q) => $q->whereNotNull('emails')->whereRaw('JSON_LENGTH(emails) > 0 AND '.self::NOT_GUESSED))
             ->when($request->boolean('has_phone'), fn ($q) => $q->whereNotNull('phone'))
             ->when($request->boolean('starred'), fn ($q) => $q->where('starred', true))
+            ->when($request->boolean('due'), fn ($q) => $q->whereNotNull('next_follow_up_at')->where('next_follow_up_at', '<=', now()->endOfDay()))
             ->when($request->query('country'), fn ($q, $c) => $q->where('country', $c))
             ->when($request->query('search_id'), fn ($q, $id) => $q->where('lead_search_id', (int) $id))
             ->when($request->query('ids'), fn ($q, $ids) => $q->whereIn('id', array_map('intval', explode(',', $ids))))
             ->when($request->query('sort', 'score'), fn ($q, $s) => match ($s) {
-                'newest' => $q->latest('id'), 'name' => $q->orderBy('name'), 'reviews' => $q->orderByDesc('reviews_count')->orderByDesc('score'),
+                'newest' => $q->latest('id'), 'name' => $q->orderBy('name'), 'follow_up' => $q->orderByRaw('next_follow_up_at IS NULL')->orderBy('next_follow_up_at'), 'reviews' => $q->orderByDesc('reviews_count')->orderByDesc('score'),
                 default => $q->orderByDesc('score')->orderByDesc('id'),
             });
     }
@@ -372,19 +413,23 @@ class LeadController extends Controller
             'phone' => $l->phone, 'website' => $l->website, 'domain' => $l->domain, 'emails' => $l->emails ?? [], 'socials' => (object) ($l->socials ?? []),
             'summary' => $l->summary, 'rating' => $l->rating, 'reviews_count' => $l->reviews_count, 'score' => $l->score, 'score_reasons' => $l->score_reasons ?? [],
             'ai_scored' => $l->ai_scored, 'status' => $l->status, 'starred' => $l->starred, 'enrich_status' => $l->enrich_status, 'source' => $l->source,
-            'company_id' => $l->company_id, 'contacted_at' => $l->contacted_at, 'created_at' => $l->created_at];
+            'company_id' => $l->company_id, 'contacted_at' => $l->contacted_at, 'created_at' => $l->created_at,
+            'next_follow_up_at' => $l->next_follow_up_at, 'email_checks' => (object) ($l->email_checks ?? []), 'lat' => $l->lat, 'lng' => $l->lng];
     }
 
     private function stats(): array
     {
         $s = Lead::query()->selectRaw("COUNT(*) total,
-            SUM(CASE WHEN emails IS NOT NULL AND JSON_LENGTH(emails) > 0 THEN 1 ELSE 0 END) with_email,
+            SUM(CASE WHEN emails IS NOT NULL AND JSON_LENGTH(emails) > 0 AND ".self::NOT_GUESSED." THEN 1 ELSE 0 END) with_email,
+            SUM(CASE WHEN emails IS NOT NULL AND JSON_LENGTH(emails) > 0 AND NOT ".self::NOT_GUESSED." THEN 1 ELSE 0 END) guessed_email,
             SUM(CASE WHEN phone IS NOT NULL THEN 1 ELSE 0 END) with_phone,
             SUM(CASE WHEN score >= 75 THEN 1 ELSE 0 END) grade_a,
             SUM(CASE WHEN status IN ('contacted','replied','qualified','won') THEN 1 ELSE 0 END) contacted,
             SUM(CASE WHEN status IN ('replied','qualified','won') THEN 1 ELSE 0 END) replied,
             SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) won,
-            SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) this_week", [now()->subDays(7)])->first();
+            SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) this_week,
+            SUM(CASE WHEN next_follow_up_at IS NOT NULL AND next_follow_up_at <= ? THEN 1 ELSE 0 END) due_today,
+            SUM(CASE WHEN lat IS NOT NULL THEN 1 ELSE 0 END) mapped", [now()->subDays(7), now()->endOfDay()])->first();
 
         return array_map('intval', $s->toArray());
     }

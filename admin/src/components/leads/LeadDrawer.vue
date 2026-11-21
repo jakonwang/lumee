@@ -6,15 +6,15 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  NButton, NDrawer, NDrawerContent, NEmpty, NIcon, NInput, NSelect, NSkeleton, NSpin, NTab, NTabs, NTooltip, useMessage,
+  NButton, NDatePicker, NDrawer, NPopover, NDrawerContent, NEmpty, NIcon, NInput, NSelect, NSkeleton, NSpin, NTab, NTabs, NTooltip, useMessage,
 } from 'naive-ui'
 import {
-  CallOutline, CopyOutline, GlobeOutline, LocationOutline, LogoWhatsapp, MailOutline, OpenOutline, RefreshOutline, SparklesOutline, Star, StarOutline,
+  AlarmOutline, CallOutline, CopyOutline, GlobeOutline, LocationOutline, LogoWhatsapp, MailOutline, OpenOutline, RefreshOutline, SparklesOutline, Star, StarOutline,
   BusinessOutline, ChatbubbleEllipsesOutline, CreateOutline,
 } from '@vicons/ionicons5'
 import { http, errorMessage } from '@/api/http'
 import { formatDate } from '@/api/orders'
-import { SEGMENT_LABELS, SOCIAL_LABELS, STATUS_LABELS, STATUS_OPTIONS, flag, type LeadDetail, type LeadStatus } from '@/api/leads'
+import { SEGMENT_LABELS, SOCIAL_LABELS, STATUS_LABELS, STATUS_OPTIONS, dueText, emailBadge, flag, type LeadDetail, type LeadStatus } from '@/api/leads'
 import ScoreRing from './ScoreRing.vue'
 import { t } from '@/i18n'
 
@@ -115,8 +115,25 @@ async function logActivity(type: 'note' | 'email' | 'call' | 'whatsapp', body?: 
     if (notify) message.success(t('已记录'))
   } catch (e) { message.error(errorMessage(e)) }
 }
-const ACT_LABELS: Record<string, string> = { created: t('加入线索库'), status: t('状态改为'), note: t('备注'), email: t('发送开发信'), call: t('电话联系'), whatsapp: t('WhatsApp 联系') }
+// ---- Follow-up reminder ----
+const showRemind = ref(false)
+const due = computed(() => dueText(lead.value?.next_follow_up_at ?? null))
+function remindIn(days: number | null) {
+  showRemind.value = false
+  if (days === null) return patch({ next_follow_up_at: null })
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  d.setHours(9, 0, 0, 0)
+  patch({ next_follow_up_at: d.toISOString() })
+}
+function remindAt(ts: number | null) {
+  showRemind.value = false
+  if (ts) patch({ next_follow_up_at: new Date(ts).toISOString() })
+}
+
+const ACT_LABELS: Record<string, string> = { reminder: t('设置跟进提醒'), created: t('加入线索库'), status: t('状态改为'), note: t('备注'), email: t('发送开发信'), call: t('电话联系'), whatsapp: t('WhatsApp 联系') }
 function actText(a: { type: string; body: string | null }) {
+  if (a.type === 'reminder') return `${ACT_LABELS.reminder}：${a.body}`
   if (a.type === 'status') return `${ACT_LABELS.status}「${STATUS_LABELS[a.body as LeadStatus] ?? a.body}」`
   return ACT_LABELS[a.type] ?? a.type
 }
@@ -150,6 +167,21 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
       <template v-else>
         <div class="bar">
           <NSelect :value="lead.status" :options="STATUS_OPTIONS" size="small" style="width: 128px" @update:value="(v: string) => patch({ status: v })" />
+          <NPopover v-model:show="showRemind" trigger="click" placement="bottom-start" :show-arrow="false">
+            <template #trigger>
+              <button class="remind" :class="{ set: !!due, overdue: due?.overdue }">
+                <NIcon size="14"><AlarmOutline /></NIcon>{{ due ? due.text : t('设置跟进提醒') }}
+              </button>
+            </template>
+            <div class="remind-menu">
+              <button @click="remindIn(1)">{{ t('明天') }}</button>
+              <button @click="remindIn(3)">{{ t('3 天后') }}</button>
+              <button @click="remindIn(7)">{{ t('1 周后') }}</button>
+              <button @click="remindIn(14)">{{ t('2 周后') }}</button>
+              <NDatePicker type="date" size="small" :placeholder="t('选择日期')" :is-date-disabled="(ts: number) => ts < Date.now() - 864e5" @update:value="remindAt" />
+              <button v-if="due" class="clear" @click="remindIn(null)">{{ t('清除提醒') }}</button>
+            </div>
+          </NPopover>
           <div class="bar-acts">
             <NTooltip><template #trigger>
               <NButton size="small" quaternary :loading="busy === 'recheck'" :disabled="!lead.website" @click="act('recheck')">
@@ -185,6 +217,11 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
             <div v-for="e in lead.emails" :key="e" class="c-row">
               <NIcon size="16" class="c-ico"><MailOutline /></NIcon>
               <a :href="`mailto:${e}`" class="c-val">{{ e }}</a>
+              <NTooltip v-if="emailBadge(lead.email_checks[e])"><template #trigger>
+                <span class="eb" :class="emailBadge(lead.email_checks[e])!.tone">{{ emailBadge(lead.email_checks[e])!.label }}</span></template>
+                {{ lead.email_checks[e].guessed ? t('官网没有公开邮箱。对方域名可以收信，这是最常用的公司邮箱，建议先打电话确认。')
+                  : lead.email_checks[e].mx ? t('对方域名有收信服务器（MX 记录），邮件可以送达。') : t('这个域名没有收信服务器，发过去会被退回。') }}
+              </NTooltip>
               <button class="ghost" :aria-label="t('复制')" @click="copy(e)"><NIcon size="14"><CopyOutline /></NIcon></button>
             </div>
             <div v-for="p in [lead.phone, ...lead.phones].filter(Boolean) as string[]" :key="p" class="c-row">
@@ -293,7 +330,18 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
 .star { border: 0; background: none; padding: 2px; cursor: pointer; color: #B7C2BC; display: inline-flex; }
 .star.on { color: var(--brand-600); }
 .bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.bar-acts { display: flex; gap: 4px; flex-wrap: wrap; }
+.bar-acts { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+.remind { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: 7px; border: 1px dashed #C5CEC9; background: #fff; font: inherit; font-size: 12.5px; color: #5C6963; cursor: pointer; }
+.remind:hover { border-color: var(--brand-300); color: var(--brand-700); }
+.remind.set { border-style: solid; border-color: var(--brand-100); background: var(--brand-50); color: var(--brand-700); }
+.remind.overdue { border-color: var(--brand-500); color: var(--brand-800); font-weight: 600; }
+.remind-menu { display: grid; gap: 2px; min-width: 180px; }
+.remind-menu button { text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); }
+.remind-menu button:hover { background: var(--surface-muted); }
+.remind-menu .clear { color: var(--ink-muted); }
+.eb { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--surface-muted); color: var(--ink-muted); }
+.eb.ok { background: var(--brand-50); color: var(--brand-700); }
+.eb.warn { background: #fff; color: #5C6963; box-shadow: inset 0 0 0 1px #C5CEC9; }
 .tabs { padding: 0 24px; }
 .pad { padding: 18px 24px 28px; }
 .summary { margin: 0 0 4px; font-size: 14px; line-height: 1.65; color: var(--ink); }
@@ -339,7 +387,7 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
 .ev:not(:last-child)::after { content: ''; position: absolute; left: 4px; top: 14px; bottom: 0; width: 1px; background: var(--border); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: #C5CEC9; margin-top: 5px; flex: none; }
 .dot.email, .dot.whatsapp, .dot.call { background: var(--brand-600); }
-.dot.status { background: var(--brand-300); }
+.dot.status, .dot.reminder { background: var(--brand-300); }
 .ev-title { font-size: 13.5px; }
 .ev-body { margin-top: 4px; font-size: 13px; color: #3D4943; white-space: pre-wrap; line-height: 1.6; max-height: 160px; overflow: auto; }
 </style>

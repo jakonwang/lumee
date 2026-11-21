@@ -3,22 +3,24 @@
  * 获客雷达 (Lead finder): search a market for B2B buyers of the merchant's product, read their
  * websites for contact details, score them, then work them like a pipeline.
  */
-import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   NAlert, NButton, NCard, NCheckbox, NDataTable, NDynamicTags, NEmpty, NIcon, NInput, NInputNumber, NModal, NPopconfirm, NProgress, NRadioButton,
   NRadioGroup, NSelect, NSkeleton, NTooltip, useMessage, type DataTableColumns, type DataTableRowKey,
 } from 'naive-ui'
 import {
-  CallOutline, CloudDownloadOutline, GlobeOutline, LinkOutline, LogoWhatsapp, MailOutline, RadioOutline, SearchOutline, SettingsOutline, SparklesOutline,
-  Star, StarOutline, TrashOutline,
+  AlarmOutline, CallOutline, CheckmarkCircle, CloudDownloadOutline, GlobeOutline, LinkOutline, ListOutline, LogoWhatsapp, MailOutline, MapOutline,
+  RadioOutline, SearchOutline, SettingsOutline, SparklesOutline, Star, StarOutline, TrashOutline,
 } from '@vicons/ionicons5'
 import { http, errorMessage } from '@/api/http'
 import { download } from '@/utils/download'
 import {
-  SEGMENT_LABELS, SEGMENT_OPTIONS, STATUS_OPTIONS, flag, type LeadMeta, type LeadRow, type LeadSearch, type LeadSettings, type LeadStats,
+  SEGMENT_LABELS, SEGMENT_OPTIONS, STATUS_OPTIONS, dueText, emailBadge, flag,
+  type LeadMeta, type LeadRow, type LeadSearch, type LeadSettings, type LeadStats, type MapLead,
 } from '@/api/leads'
 import ScoreRing from '@/components/leads/ScoreRing.vue'
 import LeadDrawer from '@/components/leads/LeadDrawer.vue'
+import LeadMap from '@/components/leads/LeadMap.vue'
 import LeadSettingsModal from '@/components/leads/LeadSettingsModal.vue'
 import { t } from '@/i18n'
 
@@ -27,6 +29,28 @@ const meta = ref<LeadMeta | null>(null)
 const settings = computed<LeadSettings | null>(() => meta.value?.settings ?? null)
 const showSettings = ref(false)
 const countryName = (c: string | null) => meta.value?.countries.find((x) => x.code === c)?.name ?? c ?? ''
+
+// ---------- AI: describe the buyers in one sentence ----------
+const aiText = ref('')
+const planning = ref(false)
+const planNote = ref('')
+const aiExamples = [t('帮我找墨西哥城和瓜达拉哈拉做手机配件批发的公司'), t('德国的手机维修连锁店'), t('迪拜做电子产品进口的贸易商')]
+async function aiPlan() {
+  if (!settings.value?.ai_ready) { showSettings.value = true; return }
+  if (aiText.value.trim().length < 4) return message.warning(t('请描述一下你要找的客户'))
+  planning.value = true
+  try {
+    const { data } = await http.post('/lead-finder/plan', { text: aiText.value }, { timeout: 90000 })
+    const p = data.data
+    skipReset = true
+    Object.assign(form, { industry: p.industry, country: p.country, cities: p.cities, keywords: p.keywords })
+    await nextTick()
+    skipReset = false
+    planNote.value = p.explain
+    message.success(t('AI 已生成搜索条件，确认后点「开始搜索」'))
+  } catch (e) { message.error(errorMessage(e)) } finally { planning.value = false }
+}
+let skipReset = false
 
 // ---------- New search ----------
 const form = reactive({ industry: 'phone_film', country: 'US', cities: [] as string[], keywords: [] as string[], source: 'osm' as 'google' | 'osm', limit: 60 })
@@ -38,6 +62,8 @@ const countryOptions = computed(() => (meta.value?.countries ?? []).map((c) => (
 const citySuggestions = computed(() => (country.value?.cities ?? []).filter((c) => !form.cities.includes(c)))
 const keywordSuggestions = computed(() => (meta.value?.keywords[form.industry]?.[form.country] ?? []).filter((k) => !form.keywords.includes(k)))
 function resetKeywords() {
+  if (skipReset) { skipReset = false; return }   // AI just filled these in
+  planNote.value = ''
   form.keywords = (meta.value?.keywords[form.industry]?.[form.country] ?? []).slice(0, 4)
   form.cities = (country.value?.cities ?? []).slice(0, 2)
 }
@@ -111,14 +137,22 @@ const rows = ref<LeadRow[]>([])
 const stats = ref<LeadStats | null>(null)
 const loading = ref(false)
 const filters = reactive({ q: '', grade: null as string | null, segment: null as string | null, status: null as string | null, has_email: false,
-  starred: false, country: null as string | null, search_id: null as number | null, sort: 'score' })
+  starred: false, due: false, country: null as string | null, search_id: null as number | null, sort: 'score' })
+const view = ref<'list' | 'map'>('list')
+const mapLeads = ref<MapLead[]>([])
+const mapLoading = ref(false)
+async function loadMap() {
+  mapLoading.value = true
+  try { mapLeads.value = (await http.get('/leads/map', { params: params() })).data.data } finally { mapLoading.value = false }
+}
+watch(view, (v) => { if (v === 'map') loadMap() })
 const pagination = reactive({ page: 1, pageSize: 25, itemCount: 0, showSizePicker: true, pageSizes: [25, 50, 100] })
 const checked = ref<DataTableRowKey[]>([])
 
 function params() {
   return {
     q: filters.q || undefined, grade: filters.grade || undefined, segment: filters.segment || undefined, status: filters.status || undefined,
-    has_email: filters.has_email ? 1 : undefined, starred: filters.starred ? 1 : undefined, country: filters.country || undefined,
+    has_email: filters.has_email ? 1 : undefined, starred: filters.starred ? 1 : undefined, due: filters.due ? 1 : undefined, country: filters.country || undefined,
     search_id: filters.search_id || undefined, sort: filters.sort,
   }
 }
@@ -130,10 +164,17 @@ async function load(quiet = false) {
     pagination.itemCount = data.total
     stats.value = data.stats
   } finally { loading.value = false }
+  if (view.value === 'map') loadMap()
 }
 let qTimer: ReturnType<typeof setTimeout> | undefined
 watch(() => filters.q, () => { clearTimeout(qTimer); qTimer = setTimeout(() => { pagination.page = 1; load() }, 300) })
-watch(() => [filters.grade, filters.segment, filters.status, filters.has_email, filters.starred, filters.country, filters.search_id, filters.sort], () => { pagination.page = 1; load() })
+watch(() => [filters.grade, filters.segment, filters.status, filters.has_email, filters.starred, filters.due, filters.country, filters.search_id, filters.sort], () => { pagination.page = 1; load() })
+
+function showDue() {
+  Object.assign(filters, { due: true, grade: null, status: null, sort: 'follow_up' })
+  view.value = 'list'
+  document.querySelector('.table-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 async function quick(row: LeadRow, body: Record<string, unknown>) {
   Object.assign(row, body)
@@ -173,14 +214,25 @@ const columns = computed<DataTableColumns<LeadRow>>(() => [
       const social = Object.keys(r.socials).filter((k) => k !== 'whatsapp').length
       if (social) items.push(h('span', { class: 'ct on', title: Object.keys(r.socials).join(', ') }, [h(NIcon, { size: 14 }, { default: () => h(LinkOutline) }), ` ${social}`]))
       const first = r.emails[0] ?? r.phone
+      const badge = r.emails[0] ? emailBadge(r.email_checks[r.emails[0]]) : null
       return h('div', { class: 'cts' }, [h('div', { class: 'ct-icons' }, items.length ? items : [h('span', { class: 'muted' }, r.enrich_status === 'pending' ? t('读取中…') : '—')]),
-        first ? h('div', { class: 'ct-first' }, first) : null])
+        first ? h('div', { class: 'ct-first' }, [
+          badge?.tone === 'ok' ? h(NIcon, { size: 12, class: 'ok-ico' }, { default: () => h(CheckmarkCircle) }) : null,
+          h('span', first),
+          badge && badge.tone === 'warn' ? h('span', { class: 'eb warn' }, badge.label) : null,
+        ]) : null])
     },
   },
   {
-    title: t('状态'), key: 'status', width: 130,
-    render: (r) => h(NSelect, { value: r.status, options: STATUS_OPTIONS, size: 'small', consistentMenuWidth: false, 'onUpdate:value': (v: string) => quick(r, { status: v }),
-      onClick: (e: Event) => e.stopPropagation(), class: ['status-sel', r.status] }),
+    title: t('状态'), key: 'status', width: 140,
+    render: (r) => {
+      const due = dueText(r.next_follow_up_at)
+      return h('div', { class: 'st' }, [
+        h(NSelect, { value: r.status, options: STATUS_OPTIONS, size: 'small', consistentMenuWidth: false, 'onUpdate:value': (v: string) => quick(r, { status: v }),
+          onClick: (e: Event) => e.stopPropagation(), class: ['status-sel', r.status] }),
+        due ? h('div', { class: ['due', { overdue: due.overdue }] }, [h(NIcon, { size: 12 }, { default: () => h(AlarmOutline) }), due.text]) : null,
+      ])
+    },
   },
 ])
 
@@ -246,7 +298,12 @@ onBeforeUnmount(() => clearTimeout(poll))
       <template v-if="stats">
         <div class="kpi"><div class="k-label">{{ t('线索总数') }}</div><div class="k-val">{{ stats.total }}</div><div class="k-sub">{{ t('本周新增 {0}', [stats.this_week]) }}</div></div>
         <div class="kpi"><div class="k-label">{{ t('A 级高意向') }}</div><div class="k-val">{{ stats.grade_a }}</div><div class="k-sub">{{ t('评分 ≥ 75') }}</div></div>
-        <div class="kpi"><div class="k-label">{{ t('有邮箱') }}</div><div class="k-val">{{ stats.with_email }}</div><div class="k-sub">{{ stats.total ? Math.round((100 * stats.with_email) / stats.total) : 0 }}% · {{ t('有电话 {0}', [stats.with_phone]) }}</div></div>
+        <button class="kpi kpi-btn" :class="{ hot: stats.due_today > 0, on: filters.due }" @click="showDue">
+          <div class="k-label"><NIcon size="13"><AlarmOutline /></NIcon> {{ t('今日待跟进') }}</div>
+          <div class="k-val">{{ stats.due_today }}</div>
+          <div class="k-sub">{{ stats.due_today ? t('点击查看') : t('暂无到期提醒') }}</div>
+        </button>
+        <div class="kpi"><div class="k-label">{{ t('有邮箱') }}</div><div class="k-val">{{ stats.with_email }}</div><div class="k-sub">{{ stats.total ? Math.round((100 * stats.with_email) / stats.total) : 0 }}%{{ stats.guessed_email ? ` · ${t('另有 {0} 个推测', [stats.guessed_email])}` : '' }} · {{ t('有电话 {0}', [stats.with_phone]) }}</div></div>
         <div class="kpi wide">
           <div class="k-label">{{ t('跟进漏斗') }}</div>
           <div class="funnel">
@@ -274,6 +331,18 @@ onBeforeUnmount(() => clearTimeout(poll))
         <span class="comp-chev">{{ composerOpen ? t('收起') : t('展开') }}</span>
       </button>
       <div v-if="composerOpen && meta" class="comp-body">
+        <div class="ai-box">
+          <div class="ai-row">
+            <NIcon size="18" class="ai-ico"><SparklesOutline /></NIcon>
+            <NInput v-model:value="aiText" :placeholder="t('用一句话描述你要找的客户，AI 自动生成搜索条件')" :bordered="false" class="ai-input" @keyup.enter="aiPlan" />
+            <NButton type="primary" secondary :loading="planning" @click="aiPlan">{{ settings?.ai_ready ? t('AI 生成') : t('开启 AI') }}</NButton>
+          </div>
+          <div class="ai-ex">
+            <span class="muted">{{ t('试试：') }}</span>
+            <button v-for="ex in aiExamples" :key="ex" @click="aiText = ex">{{ ex }}</button>
+          </div>
+          <div v-if="planNote" class="ai-note"><NIcon size="14"><CheckmarkCircle /></NIcon> {{ planNote }}</div>
+        </div>
         <div class="field">
           <label>{{ t('我卖什么') }}</label>
           <div class="chips">
@@ -361,8 +430,13 @@ onBeforeUnmount(() => clearTimeout(poll))
           <NSelect v-model:value="filters.search_id" size="small" clearable :options="searchOptions" :placeholder="t('搜索任务')" style="width: 170px" />
           <NCheckbox v-model:checked="filters.has_email" size="small">{{ t('有邮箱') }}</NCheckbox>
           <NCheckbox v-model:checked="filters.starred" size="small">{{ t('已标星') }}</NCheckbox>
+          <NCheckbox v-model:checked="filters.due" size="small">{{ t('待跟进') }}</NCheckbox>
           <NSelect v-model:value="filters.sort" size="small" style="width: 120px"
-            :options="[{ label: t('按评分'), value: 'score' }, { label: t('最新加入'), value: 'newest' }, { label: t('评价最多'), value: 'reviews' }, { label: t('按名称'), value: 'name' }]" />
+            :options="[{ label: t('按评分'), value: 'score' }, { label: t('最新加入'), value: 'newest' }, { label: t('评价最多'), value: 'reviews' }, { label: t('跟进时间'), value: 'follow_up' }, { label: t('按名称'), value: 'name' }]" />
+          <div class="view-toggle" role="group" :aria-label="t('视图')">
+            <button :class="{ on: view === 'list' }" @click="view = 'list'"><NIcon size="15"><ListOutline /></NIcon>{{ t('列表') }}</button>
+            <button :class="{ on: view === 'map' }" @click="view = 'map'"><NIcon size="15"><MapOutline /></NIcon>{{ t('地图') }}</button>
+          </div>
         </div>
       </div>
       <div v-if="checked.length" class="bulkbar">
@@ -381,6 +455,7 @@ onBeforeUnmount(() => clearTimeout(poll))
       <NEmpty v-if="!loading && !rows.length && !stats?.total" class="empty" :description="t('还没有线索。在上面选择产品和国家，点「开始搜索」，几分钟后这里就会出现带联系方式的潜在客户。')">
         <template #extra><NButton type="primary" @click="composerOpen = true">{{ t('新建搜索') }}</NButton></template>
       </NEmpty>
+      <LeadMap v-else-if="view === 'map'" :leads="mapLeads" :loading="mapLoading" @open="(id: number) => (openId = id)" />
       <NDataTable v-else v-model:checked-row-keys="checked" remote :row-key="(r: LeadRow) => r.id" :columns="columns" :data="rows" :loading="loading"
         :bordered="false" :pagination="pagination" :scroll-x="900" :row-props="(r: LeadRow) => ({ style: 'cursor:pointer', onClick: () => (openId = r.id) })"
         @update:page="(p: number) => { pagination.page = p; load() }" @update:page-size="(s: number) => { pagination.pageSize = s; pagination.page = 1; load() }" />
@@ -410,7 +485,13 @@ onBeforeUnmount(() => clearTimeout(poll))
 .head-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .muted { color: var(--ink-muted); font-size: 12px; }
 
-.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr); gap: 12px; margin-bottom: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.8fr); gap: 12px; margin-bottom: 16px; }
+.kpi-btn { text-align: left; font: inherit; color: inherit; cursor: pointer; transition: border-color .15s, background-color .15s; }
+.kpi-btn:hover { border-color: var(--brand-300); }
+.kpi-btn.hot { background: var(--brand-50); border-color: var(--brand-100); }
+.kpi-btn.hot .k-val { color: var(--brand-700); }
+.kpi-btn.on { border-color: var(--brand-500); }
+.k-label { display: flex; align-items: center; gap: 4px; }
 .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px 16px; }
 .k-label { font-size: 12px; color: var(--ink-muted); }
 .k-val { font-family: var(--font-display); font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
@@ -429,6 +510,15 @@ onBeforeUnmount(() => clearTimeout(poll))
 .comp-ico { width: 30px; height: 30px; border-radius: 8px; background: var(--brand-50); color: var(--brand-600); display: inline-flex; align-items: center; justify-content: center; }
 .comp-title { font-weight: 600; font-size: 15px; }
 .comp-chev { margin-left: auto; font-size: 12px; color: var(--brand-700); }
+.ai-box { border: 1px solid var(--brand-100); background: linear-gradient(180deg, var(--brand-50), #fff); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
+.ai-row { display: flex; align-items: center; gap: 8px; }
+.ai-ico { color: var(--brand-600); flex: none; }
+.ai-input { flex: 1; background: transparent; }
+.ai-input :deep(.n-input__input-el) { font-size: 14px; }
+.ai-ex { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-left: 26px; }
+.ai-ex button { border: 0; background: #fff; border-radius: 99px; padding: 3px 10px; font-size: 12px; color: #3D4943; cursor: pointer; box-shadow: 0 0 0 1px var(--border); }
+.ai-ex button:hover { color: var(--brand-700); box-shadow: 0 0 0 1px var(--brand-300); }
+.ai-note { display: flex; align-items: center; gap: 6px; padding-left: 26px; font-size: 13px; color: var(--brand-800); }
 .comp-body { padding: 4px 18px 18px; display: grid; gap: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
 .field { display: grid; gap: 8px; min-width: 0; }
 .field > label { font-size: 13px; font-weight: 600; }
@@ -466,6 +556,9 @@ onBeforeUnmount(() => clearTimeout(poll))
 .seg-tabs button:hover { background: #F1F4F2; }
 .seg-tabs button.on { background: var(--brand-50); color: var(--brand-800); font-weight: 600; }
 .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.view-toggle { display: inline-flex; margin-left: auto; border: 1px solid var(--border); border-radius: 8px; padding: 2px; background: var(--surface-muted); }
+.view-toggle button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 3px 10px; border-radius: 6px; font: inherit; font-size: 12.5px; color: #5C6963; cursor: pointer; }
+.view-toggle button.on { background: #fff; color: var(--brand-800); font-weight: 600; box-shadow: 0 1px 2px rgba(16, 24, 20, .08); }
 .bulkbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--brand-50); border-bottom: 1px solid var(--brand-100); font-size: 13px; }
 .empty { padding: 56px 16px; }
 .legal { margin: 14px 2px 0; line-height: 1.6; }
@@ -485,9 +578,16 @@ onBeforeUnmount(() => clearTimeout(poll))
 :deep(.ct-icons) { display: flex; gap: 6px; }
 :deep(.ct) { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; color: #B7C2BC; }
 :deep(.ct.on) { color: var(--brand-600); }
-:deep(.ct-first) { font-size: 12px; color: #4A5650; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:deep(.ct-first) { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #4A5650; margin-top: 4px; min-width: 0; }
+:deep(.ct-first > span:not(.eb)) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:deep(.ok-ico) { color: var(--brand-600); flex: none; }
+:deep(.eb) { flex: none; font-size: 10.5px; padding: 0 5px; border-radius: 4px; background: var(--surface-muted); color: var(--ink-muted); }
+:deep(.eb.warn) { background: #fff; color: #5C6963; box-shadow: inset 0 0 0 1px #C5CEC9; }
+:deep(.st) { display: grid; gap: 4px; }
+:deep(.due) { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--ink-muted); }
+:deep(.due.overdue) { color: var(--brand-700); font-weight: 600; }
 :deep(.status-sel.won .n-base-selection-label), :deep(.status-sel.qualified .n-base-selection-label) { color: var(--brand-700); font-weight: 600; }
 
-@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kpi.wide { grid-column: 1 / -1; } }
+@media (max-width: 1200px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } .kpi.wide { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: 1fr 1fr; } }
 </style>

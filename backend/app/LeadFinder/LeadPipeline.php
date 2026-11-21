@@ -12,7 +12,7 @@ use RuntimeException;
 /** The steps of a lead search: find places → save (deduplicated) → read their sites → score. */
 class LeadPipeline
 {
-    public function __construct(private SiteEnricher $enricher, private LeadScorer $scorer, private LeadAi $ai) {}
+    public function __construct(private SiteEnricher $enricher, private LeadScorer $scorer, private LeadAi $ai, private EmailChecker $emails) {}
 
     public function find(Store $store, LeadSearch $search, int $limit, ?callable $progress = null): array
     {
@@ -68,7 +68,9 @@ class LeadPipeline
     public function enrich(Lead $lead): void
     {
         if (! $lead->website) {
-            $lead->update(['enrich_status' => 'skipped']);
+            $lead->enrich_status = 'skipped';
+            $this->checkEmails($lead);
+            $lead->save();
 
             return;
         }
@@ -92,7 +94,27 @@ class LeadPipeline
         } catch (\Throwable $e) {
             $lead->fill(['enrich_status' => 'failed', 'enrich_error' => mb_substr($e->getMessage(), 0, 200), 'enriched_at' => now()]);
         }
+        $this->checkEmails($lead);
         $lead->save();
+    }
+
+    /** Mark each email as deliverable / role / personal / free; propose info@domain when none was published. */
+    public function checkEmails(Lead $lead): void
+    {
+        $old = $lead->email_checks ?? [];
+        $emails = array_values(array_filter($lead->emails ?? [], fn ($e) => ! ($old[$e]['guessed'] ?? false)));   // re-derive guesses
+        $checks = [];
+        foreach ($emails as $e) {
+            $checks[$e] = $this->emails->check($e);
+        }
+        // Real, deliverable addresses first
+        usort($emails, fn ($a, $b) => (int) $checks[$b]['mx'] <=> (int) $checks[$a]['mx']);
+        if (! $emails && ($g = $this->emails->guess($lead->domain))) {
+            $emails = [$g];
+            $checks[$g] = $this->emails->check($g, true);
+        }
+        $lead->emails = $emails;
+        $lead->email_checks = $checks ?: null;
     }
 
     /** "GadgetFix | Cell Phone Parts & Tools" → "GadgetFix" */

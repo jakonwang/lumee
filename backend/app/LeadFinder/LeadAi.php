@@ -90,6 +90,42 @@ class LeadAi
         return ['language' => $language, ...array_map(fn ($v) => trim((string) $v), $data)];
     }
 
+    /**
+     * "帮我找墨西哥做手机维修的批发商" → a ready-to-run search: profile, country, cities and keywords
+     * in the market's own language, plus a one-line explanation in Chinese.
+     *
+     * @return array{industry: string, country: string, cities: string[], keywords: string[], explain: string}
+     */
+    public function plan(Store $store, string $request): array
+    {
+        $profiles = collect(LeadProfiles::all())->map(fn ($p, $k) => "{$k}: {$p['label']}")->implode('; ');
+        $countries = collect(LeadProfiles::countries())->map(fn ($c, $k) => "{$k} ({$c['en']}, language: {$c['lang']})")->implode('; ');
+        $sender = LeadSettings::sender($store);
+        $prompt = "A manufacturer describes the B2B buyers they want to find. Turn it into a business-listing search.\n\n"
+            ."Request: {$request}\n".($sender['products'] ? "Their products: {$sender['products']}\n" : '')
+            ."\nProduct profiles: {$profiles}\nCountries (ISO code, name, language): {$countries}\n\n"
+            .'Return JSON: industry = one profile key (use custom when no profile fits); country = one ISO code from the list (pick the best market if none is named); '
+            .'cities = 1-4 major commercial cities in that country relevant to the request (empty only if the request asks for the whole country); '
+            .'keywords = 3-6 search phrases a local person would type into Google Maps to find these businesses, in the local language, plus up to 2 in English; '
+            .'explain = one short sentence in Simplified Chinese describing who will be searched for and where.';
+        $data = $this->json($store, $prompt, [
+            'type' => 'object',
+            'properties' => [
+                'industry' => ['type' => 'string', 'enum' => array_keys(LeadProfiles::all())],
+                'country' => ['type' => 'string', 'enum' => array_keys(LeadProfiles::countries())],
+                'cities' => ['type' => 'array', 'items' => ['type' => 'string']],
+                'keywords' => ['type' => 'array', 'items' => ['type' => 'string']],
+                'explain' => ['type' => 'string'],
+            ],
+            'required' => ['industry', 'country', 'cities', 'keywords', 'explain'],
+            'additionalProperties' => false,
+        ], 'low', 4000);
+        $clean = fn ($list) => array_slice(array_values(array_filter(array_map(fn ($v) => mb_substr(trim((string) $v), 0, 80), (array) $list))), 0, 8);
+
+        return ['industry' => $data['industry'], 'country' => $data['country'], 'cities' => $clean($data['cities']),
+            'keywords' => $clean($data['keywords']), 'explain' => mb_substr((string) $data['explain'], 0, 200)];
+    }
+
     /** No AI key: a solid English template filled with what we know. */
     public static function templateOutreach(Store $store, Lead $lead): array
     {

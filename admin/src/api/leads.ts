@@ -5,8 +5,11 @@ export interface LeadRow {
   phone: string | null; website: string | null; domain: string | null; emails: string[]; socials: Record<string, string>
   summary: string | null; rating: number | null; reviews_count: number | null; score: number; score_reasons: string[]
   ai_scored: boolean; status: LeadStatus; starred: boolean; enrich_status: string; source: string; company_id: number | null
-  contacted_at: string | null; created_at: string
+  contacted_at: string | null; created_at: string; next_follow_up_at: string | null
+  email_checks: Record<string, EmailCheck>; lat: number | null; lng: number | null
 }
+export interface EmailCheck { mx: boolean; kind: 'role' | 'personal' | 'free'; guessed: boolean }
+export interface MapLead { id: number; name: string; score: number; segment: Segment; status: LeadStatus; lat: number; lng: number; city: string | null; country: string | null; has_email: boolean; has_phone: boolean }
 export interface LeadDetail extends LeadRow {
   address: string | null; phones: string[]; lat: number | null; lng: number | null; signals: string[]; enrich_error: string | null
   note: string | null; search: { id: number; name: string; industry: string } | null; has_site_text: boolean
@@ -17,7 +20,7 @@ export interface LeadSearch {
   status: 'queued' | 'running' | 'done' | 'failed'; stage: string | null; found: number; new_leads: number; enriched: number; to_enrich: number
   error: string | null; created_at: string; finished_at: string | null
 }
-export interface LeadStats { total: number; with_email: number; with_phone: number; grade_a: number; contacted: number; replied: number; won: number; this_week: number }
+export interface LeadStats { total: number; with_email: number; with_phone: number; grade_a: number; contacted: number; replied: number; won: number; this_week: number; due_today: number; mapped: number; guessed_email: number }
 export interface Sender { company: string; name: string; title: string; products: string; advantages: string; moq: string; website: string; whatsapp: string; email: string }
 export interface LeadSettings {
   google_key_set: boolean; anthropic_key_set: boolean; google_platform: boolean; anthropic_platform: boolean
@@ -61,4 +64,25 @@ export const SOCIAL_LABELS: Record<string, string> = {
 export function whatsappLink(lead: { socials: Record<string, string>; phone: string | null }): string | null {
   if (lead.socials.whatsapp) return lead.socials.whatsapp
   return null
+}
+
+export const GRADE_COLORS = { A: '#0A7350', B: '#14A06E', C: '#7CC9A6', D: '#B9C4BE' } as const
+
+export function emailBadge(c: EmailCheck | undefined): { label: string; tone: 'ok' | 'muted' | 'warn' } | null {
+  if (!c) return null
+  if (c.guessed) return { label: t('推测'), tone: 'warn' }
+  if (!c.mx) return { label: t('域名不收信'), tone: 'warn' }
+  return { label: c.kind === 'personal' ? t('个人邮箱') : c.kind === 'free' ? t('免费邮箱') : t('已验证'), tone: c.kind === 'role' ? 'ok' : 'muted' }
+}
+
+/** "今天" / "明天" / "已逾期 2 天" / "11月28日" */
+export function dueText(iso: string | null): { text: string; overdue: boolean } | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const diff = Math.round((day(d) - day(new Date())) / 864e5)
+  if (diff < 0) return { text: t('逾期 {0} 天', [-diff]), overdue: true }
+  if (diff === 0) return { text: t('今天跟进'), overdue: true }
+  if (diff === 1) return { text: t('明天跟进'), overdue: false }
+  return { text: t('{0} 天后跟进', [diff]), overdue: false }
 }

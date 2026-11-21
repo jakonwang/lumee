@@ -243,6 +243,8 @@ Route::prefix('admin')->group(function () {
                 Route::delete('lead-searches/{id}', [$lf, 'destroySearch'])->whereNumber('id');
                 Route::get('leads', [$lf, 'index']);
                 Route::get('leads/export', [$lf, 'export'])->middleware('throttle:imports');
+                Route::get('leads/map', [$lf, 'map']);
+                Route::post('lead-finder/plan', [$lf, 'plan'])->middleware('throttle:30,1');
                 Route::post('leads/bulk', [$lf, 'bulk']);
                 Route::get('leads/{id}', [$lf, 'show'])->whereNumber('id');
                 Route::patch('leads/{id}', [$lf, 'update'])->whereNumber('id');
