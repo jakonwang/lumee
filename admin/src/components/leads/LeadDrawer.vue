@@ -6,7 +6,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  NButton, NDatePicker, NDrawer, NPopover, NDrawerContent, NEmpty, NIcon, NInput, NSelect, NSkeleton, NSpin, NTab, NTabs, NTooltip, useMessage,
+  NButton, NDrawer, NPopover, NDrawerContent, NEmpty, NIcon, NInput, NSelect, NSkeleton, NSpin, NTab, NTabs, NTooltip, useMessage,
 } from 'naive-ui'
 import {
   AlarmOutline, CallOutline, CopyOutline, GlobeOutline, LocationOutline, LogoWhatsapp, MailOutline, OpenOutline, RefreshOutline, SparklesOutline, Star, StarOutline,
@@ -126,9 +126,10 @@ function remindIn(days: number | null) {
   d.setHours(9, 0, 0, 0)
   patch({ next_follow_up_at: d.toISOString() })
 }
-function remindAt(ts: number | null) {
+const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10)
+function remindAt(day: string) {   // native date input: "2026-11-30", reminded at 9:00 local time
   showRemind.value = false
-  if (ts) patch({ next_follow_up_at: new Date(ts).toISOString() })
+  if (day) patch({ next_follow_up_at: new Date(`${day}T09:00:00`).toISOString() })
 }
 
 const ACT_LABELS: Record<string, string> = { reminder: t('设置跟进提醒'), created: t('加入线索库'), status: t('状态改为'), note: t('备注'), email: t('发送开发信'), call: t('电话联系'), whatsapp: t('WhatsApp 联系') }
@@ -178,7 +179,7 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
               <button @click="remindIn(3)">{{ t('3 天后') }}</button>
               <button @click="remindIn(7)">{{ t('1 周后') }}</button>
               <button @click="remindIn(14)">{{ t('2 周后') }}</button>
-              <NDatePicker type="date" size="small" :placeholder="t('选择日期')" :is-date-disabled="(ts: number) => ts < Date.now() - 864e5" @update:value="remindAt" />
+              <label class="pick">{{ t('选择日期') }}<input type="date" :min="today" @change="(e: Event) => remindAt((e.target as HTMLInputElement).value)" /></label>
               <button v-if="due" class="clear" @click="remindIn(null)">{{ t('清除提醒') }}</button>
             </div>
           </NPopover>
@@ -339,6 +340,8 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
 .remind-menu button { text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); }
 .remind-menu button:hover { background: var(--surface-muted); }
 .remind-menu .clear { color: var(--ink-muted); }
+.pick { display: grid; gap: 4px; padding: 6px 8px; font-size: 12px; color: var(--ink-muted); }
+.pick input { font: inherit; font-size: 13px; color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 .eb { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--surface-muted); color: var(--ink-muted); }
 .eb.ok { background: var(--brand-50); color: var(--brand-700); }
 .eb.warn { background: #fff; color: #5C6963; box-shadow: inset 0 0 0 1px #C5CEC9; }

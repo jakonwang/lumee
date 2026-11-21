@@ -3,10 +3,10 @@
  * 获客雷达 (Lead finder): search a market for B2B buyers of the merchant's product, read their
  * websites for contact details, score them, then work them like a pipeline.
  */
-import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
-  NAlert, NButton, NCard, NCheckbox, NDataTable, NDynamicTags, NEmpty, NIcon, NInput, NInputNumber, NModal, NPopconfirm, NProgress, NRadioButton,
-  NRadioGroup, NSelect, NSkeleton, NTooltip, useMessage, type DataTableColumns, type DataTableRowKey,
+  NAlert, NButton, NCard, NCheckbox, NDataTable, NDropdown, NDynamicTags, NEmpty, NIcon, NInput, NInputNumber, NModal, NPopconfirm, NProgress, NRadioButton,
+  NRadioGroup, NSelect, NSkeleton, useMessage, type DataTableColumns, type DataTableRowKey,
 } from 'naive-ui'
 import {
   AlarmOutline, CallOutline, CheckmarkCircle, CloudDownloadOutline, GlobeOutline, LinkOutline, ListOutline, LogoWhatsapp, MailOutline, MapOutline,
@@ -15,12 +15,12 @@ import {
 import { http, errorMessage } from '@/api/http'
 import { download } from '@/utils/download'
 import {
-  SEGMENT_LABELS, SEGMENT_OPTIONS, STATUS_OPTIONS, dueText, emailBadge, flag,
+  SEGMENT_LABELS, SEGMENT_OPTIONS, STATUS_LABELS, STATUS_OPTIONS, dueText, emailBadge, flag,
   type LeadMeta, type LeadRow, type LeadSearch, type LeadSettings, type LeadStats, type MapLead,
 } from '@/api/leads'
 import ScoreRing from '@/components/leads/ScoreRing.vue'
 import LeadDrawer from '@/components/leads/LeadDrawer.vue'
-import LeadMap from '@/components/leads/LeadMap.vue'
+const LeadMap = defineAsyncComponent(() => import('@/components/leads/LeadMap.vue'))
 import LeadSettingsModal from '@/components/leads/LeadSettingsModal.vue'
 import { t } from '@/i18n'
 
@@ -106,16 +106,20 @@ const searches = ref<LeadSearch[]>([])
 const active = computed(() => searches.value.filter((s) => s.status === 'queued' || s.status === 'running'))
 const recent = computed(() => searches.value.filter((s) => s.status !== 'queued' && s.status !== 'running').slice(0, 6))
 let poll: ReturnType<typeof setTimeout> | undefined
+let lastProgress = ''
 async function loadSearches() {
   clearTimeout(poll)
   const before = active.value.length
   searches.value = (await http.get('/lead-searches')).data.data
+  // Re-load the table only when a running search made progress — not on every tick
+  const progress = active.value.map((s) => `${s.id}:${s.new_leads}:${s.enriched}`).join('|')
   if (active.value.length) {
-    load(true)
-    poll = setTimeout(loadSearches, 3000)
+    if (progress !== lastProgress) load(true)
+    poll = setTimeout(loadSearches, 4000)
   } else if (before) {
     load(true)
   }
+  lastProgress = progress
 }
 function progressOf(s: LeadSearch) {
   if (s.status === 'queued') return 2
@@ -196,7 +200,7 @@ const columns = computed<DataTableColumns<LeadRow>>(() => [
         h('button', { class: ['star', { on: r.starred }], 'aria-label': t('标星'), onClick: (e: Event) => { e.stopPropagation(); quick(r, { starred: !r.starred }) } },
           [h(NIcon, { size: 15 }, { default: () => h(r.starred ? Star : StarOutline) })]),
         h('span', { class: 'nm' }, r.name),
-        r.ai_scored ? h(NTooltip, null, { trigger: () => h('span', { class: 'ai' }, [h(NIcon, { size: 11 }, { default: () => h(SparklesOutline) })]), default: () => t('已经过 AI 分析') }) : null,
+        r.ai_scored ? h('span', { class: 'ai', title: t('已经过 AI 分析') }, [h(NIcon, { size: 11 }, { default: () => h(SparklesOutline) })]) : null,
       ]),
       h('div', { class: 'co-sub' }, [`${flag(r.country)} ${[r.city, countryName(r.country)].filter(Boolean).join(' · ')}`, r.rating ? `  ·  ★ ${r.rating} (${r.reviews_count})` : '']),
       r.summary ? h('div', { class: 'co-sum' }, r.summary) : (r.score_reasons[0] ? h('div', { class: 'co-sum' }, r.score_reasons[0]) : null),
@@ -207,8 +211,8 @@ const columns = computed<DataTableColumns<LeadRow>>(() => [
     title: t('联系方式'), key: 'contacts', width: 210,
     render: (r) => {
       const items: ReturnType<typeof h>[] = []
-      if (r.emails.length) items.push(h(NTooltip, null, { trigger: () => h('span', { class: 'ct on' }, [h(NIcon, { size: 14 }, { default: () => h(MailOutline) }), r.emails.length > 1 ? ` ${r.emails.length}` : '']), default: () => r.emails.join('\n') }))
-      if (r.phone) items.push(h(NTooltip, null, { trigger: () => h('span', { class: 'ct on' }, [h(NIcon, { size: 14 }, { default: () => h(CallOutline) })]), default: () => r.phone }))
+      if (r.emails.length) items.push(h('span', { class: 'ct on', title: r.emails.join('\n') }, [h(NIcon, { size: 14 }, { default: () => h(MailOutline) }), r.emails.length > 1 ? ` ${r.emails.length}` : '']))
+      if (r.phone) items.push(h('span', { class: 'ct on', title: r.phone }, [h(NIcon, { size: 14 }, { default: () => h(CallOutline) })]))
       if (r.socials.whatsapp) items.push(h('span', { class: 'ct on', title: 'WhatsApp' }, [h(NIcon, { size: 14 }, { default: () => h(LogoWhatsapp) })]))
       if (r.website) items.push(h('span', { class: 'ct on', title: r.domain ?? '' }, [h(NIcon, { size: 14 }, { default: () => h(GlobeOutline) })]))
       const social = Object.keys(r.socials).filter((k) => k !== 'whatsapp').length
@@ -228,8 +232,8 @@ const columns = computed<DataTableColumns<LeadRow>>(() => [
     render: (r) => {
       const due = dueText(r.next_follow_up_at)
       return h('div', { class: 'st' }, [
-        h(NSelect, { value: r.status, options: STATUS_OPTIONS, size: 'small', consistentMenuWidth: false, 'onUpdate:value': (v: string) => quick(r, { status: v }),
-          onClick: (e: Event) => e.stopPropagation(), class: ['status-sel', r.status] }),
+        h(NDropdown, { trigger: 'click', options: STATUS_OPTIONS.map((o) => ({ label: o.label, key: o.value })), size: 'small', onSelect: (v: string) => quick(r, { status: v }) },
+          { default: () => h('button', { class: ['pill', r.status], onClick: (e: Event) => e.stopPropagation() }, [STATUS_LABELS[r.status], h('span', { class: 'caret' }, '▾')]) }),
         due ? h('div', { class: ['due', { overdue: due.overdue }] }, [h(NIcon, { size: 12 }, { default: () => h(AlarmOutline) }), due.text]) : null,
       ])
     },
@@ -269,10 +273,15 @@ const funnel = computed(() => {
 })
 
 onMounted(async () => {
-  meta.value = (await http.get('/lead-finder/meta')).data
-  if (meta.value!.settings.google_ready) form.source = 'google'
-  resetKeywords()
-  await Promise.all([load(), loadSearches()])
+  const metaReq = http.get('/lead-finder/meta')
+  await Promise.all([
+    metaReq.then(({ data }) => {
+      meta.value = data
+      if (data.settings.google_ready) form.source = 'google'
+      resetKeywords()
+    }),
+    load(), loadSearches(),
+  ])
   if (stats.value?.total) composerOpen.value = false
 })
 onBeforeUnmount(() => clearTimeout(poll))
@@ -486,7 +495,7 @@ onBeforeUnmount(() => clearTimeout(poll))
 .muted { color: var(--ink-muted); font-size: 12px; }
 
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.8fr); gap: 12px; margin-bottom: 16px; }
-.kpi-btn { text-align: left; font: inherit; color: inherit; cursor: pointer; transition: border-color .15s, background-color .15s; }
+.kpi-btn { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; text-align: left; font: inherit; color: inherit; cursor: pointer; transition: border-color .15s, background-color .15s; }
 .kpi-btn:hover { border-color: var(--brand-300); }
 .kpi-btn.hot { background: var(--brand-50); border-color: var(--brand-100); }
 .kpi-btn.hot .k-val { color: var(--brand-700); }
@@ -496,9 +505,9 @@ onBeforeUnmount(() => clearTimeout(poll))
 .k-label { font-size: 12px; color: var(--ink-muted); }
 .k-val { font-family: var(--font-display); font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .k-sub { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
-.funnel { display: grid; gap: 5px; margin-top: 8px; }
-.f-step { display: grid; grid-template-columns: 1fr 96px; align-items: center; gap: 10px; }
-.f-bar { height: 8px; background: #EEF2EF; border-radius: 99px; overflow: hidden; }
+.funnel { display: grid; gap: 3px; margin-top: 6px; }
+.f-step { display: grid; grid-template-columns: 1fr 96px; align-items: center; gap: 10px; line-height: 1.35; }
+.f-bar { height: 6px; background: #EEF2EF; border-radius: 99px; overflow: hidden; }
 .f-fill { height: 100%; background: var(--brand-600); border-radius: 99px; transition: width .4s; }
 .f-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-muted); }
 .f-meta b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -586,7 +595,12 @@ onBeforeUnmount(() => clearTimeout(poll))
 :deep(.st) { display: grid; gap: 4px; }
 :deep(.due) { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--ink-muted); }
 :deep(.due.overdue) { color: var(--brand-700); font-weight: 600; }
-:deep(.status-sel.won .n-base-selection-label), :deep(.status-sel.qualified .n-base-selection-label) { color: var(--brand-700); font-weight: 600; }
+:deep(.pill) { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--border); background: #fff; font: inherit; font-size: 12.5px; color: #3D4943; cursor: pointer; white-space: nowrap; }
+:deep(.pill:hover) { border-color: var(--brand-300); }
+:deep(.pill .caret) { font-size: 9px; color: var(--ink-muted); }
+:deep(.pill.contacted), :deep(.pill.replied) { background: var(--brand-50); border-color: var(--brand-100); color: var(--brand-700); }
+:deep(.pill.qualified), :deep(.pill.won) { background: var(--brand-100); border-color: var(--brand-300); color: var(--brand-800); font-weight: 600; }
+:deep(.pill.lost) { color: var(--ink-muted); background: var(--surface-muted); }
 
 @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } .kpi.wide { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: 1fr 1fr; } }
