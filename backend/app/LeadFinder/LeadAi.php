@@ -6,6 +6,9 @@ use Anthropic\Client;
 use Anthropic\Core\Exceptions\APIConnectionException;
 use Anthropic\Core\Exceptions\APIStatusException;
 use Anthropic\Core\Exceptions\AuthenticationException;
+use Anthropic\Core\Exceptions\BadRequestException;
+use Anthropic\Core\Exceptions\NotFoundException;
+use Anthropic\Core\Exceptions\PermissionDeniedException;
 use Anthropic\Core\Exceptions\RateLimitException;
 use App\Models\Lead;
 use App\Models\Store;
@@ -166,22 +169,29 @@ class LeadAi
         if (! $key) {
             throw new RuntimeException('还没有配置 AI（Claude API Key）');
         }
+        $client = new Client(apiKey: $key);
+        $messages = [['role' => 'user', 'content' => $prompt]];
+        $outputConfig = ['effort' => $effort, 'format' => ['type' => 'json_schema', 'schema' => $schema]];
         try {
-            $client = new Client(apiKey: $key);
-            $message = $client->beta->messages->create(
-                model: self::MODEL,
-                maxTokens: $maxTokens,
-                messages: [['role' => 'user', 'content' => $prompt]],
-                outputConfig: ['effort' => $effort, 'format' => ['type' => 'json_schema', 'schema' => $schema]],
-                fallbacks: 'default',
-                betas: ['server-side-fallback-2026-07-01'],
-            );
+            try {
+                // Server-side fallback rescues a declined request on another model; it is a beta not every account has
+                $message = $client->beta->messages->create(model: self::MODEL, maxTokens: $maxTokens, messages: $messages,
+                    outputConfig: $outputConfig, fallbacks: 'default', betas: ['server-side-fallback-2026-07-01']);
+            } catch (BadRequestException $e) {
+                report($e);
+                // Rejected (e.g. the account isn't enrolled in that beta): the same request on the standard endpoint
+                $message = $client->messages->create(model: self::MODEL, maxTokens: $maxTokens, messages: $messages, outputConfig: $outputConfig);
+            }
         } catch (AuthenticationException) {
             throw new RuntimeException('Claude API Key 无效，请在获客设置里检查');
+        } catch (PermissionDeniedException|NotFoundException $e) {
+            report($e);
+            throw new RuntimeException('这个 Claude 账号无权使用模型 '.self::MODEL.'：'.self::reason($e));
         } catch (RateLimitException) {
             throw new RuntimeException('AI 请求太频繁，请稍后再试');
         } catch (APIStatusException $e) {
-            throw new RuntimeException('AI 服务报错：'.mb_substr($e->getMessage(), 0, 160));
+            report($e);
+            throw new RuntimeException(self::explain($e));
         } catch (APIConnectionException) {
             throw new RuntimeException('连接不上 AI 服务，请检查服务器网络');
         }
@@ -199,5 +209,40 @@ class LeadAi
             }
         }
         throw new RuntimeException('AI 返回内容无法解析，请重试');
+    }
+
+    /** One tiny request to confirm the key, the account's billing and model access all work. */
+    public function test(Store $store): string
+    {
+        $data = $this->json($store, 'Reply with {"ok": true}.', [
+            'type' => 'object', 'properties' => ['ok' => ['type' => 'boolean']], 'required' => ['ok'], 'additionalProperties' => false,
+        ], 'low', 1000);
+
+        return ! empty($data['ok']) ? 'ok' : 'unexpected';
+    }
+
+    /** Anthropic's own explanation from the error body (the exception message also carries the raw JSON). */
+    private static function reason(APIStatusException $e): string
+    {
+        $body = is_array($e->body) ? $e->body : (is_string($e->body) ? json_decode($e->body, true) : null);
+        $msg = $body['error']['message'] ?? null;
+        if (! $msg && preg_match('/"message"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/', $e->getMessage(), $m)) {
+            $msg = stripcslashes($m[1]);
+        }
+
+        return mb_substr((string) ($msg ?: $e->getMessage()), 0, 300);
+    }
+
+    /** Common account problems in plain Chinese, with Anthropic's own message for anything else. */
+    private static function explain(APIStatusException $e): string
+    {
+        $reason = self::reason($e);
+
+        return match (true) {
+            (bool) preg_match('/credit balance|billing|purchase credits|insufficient/i', $reason) => 'Claude 账户余额不足：请到 console.anthropic.com 的 Billing 页面充值后再试',
+            (bool) preg_match('/spend limit|usage limit|monthly limit/i', $reason) => 'Claude 账户已达到消费上限：请到 console.anthropic.com 提高 Limits 后再试',
+            (bool) preg_match('/overloaded/i', $reason) => 'AI 服务繁忙，请稍后再试',
+            default => 'AI 服务报错：'.$reason,
+        };
     }
 }

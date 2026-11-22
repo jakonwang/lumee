@@ -236,6 +236,7 @@ Route::prefix('admin')->group(function () {
                 $lf = \App\Http\Controllers\Admin\LeadController::class;
                 Route::get('lead-finder/meta', [$lf, 'meta']);
                 Route::put('lead-finder/settings', [$lf, 'settings'])->middleware('throttle:30,1');
+                Route::post('lead-finder/settings/test', [$lf, 'testKey'])->middleware('throttle:10,1');
                 Route::get('lead-searches', [$lf, 'searches']);
                 Route::post('lead-searches', [$lf, 'createSearch'])->middleware('throttle:20,1');
                 Route::post('lead-searches/import', [$lf, 'importSites'])->middleware('throttle:20,1');

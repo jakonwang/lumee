@@ -71,6 +71,39 @@ class LeadController extends Controller
         return response()->json(['settings' => LeadSettings::public($current->getOrFail()->fresh())]);
     }
 
+    /** "Test connection" in settings: one tiny real request with the saved key, reporting exactly what's wrong. */
+    public function testKey(Request $request, CurrentStore $current, LeadAi $ai): JsonResponse
+    {
+        $data = $request->validate(['service' => ['required', Rule::in(['anthropic', 'google'])]]);
+        $store = $current->getOrFail();
+        if ($data['service'] === 'anthropic') {
+            if (! LeadAi::ready($store)) {
+                return response()->json(['ok' => false, 'message' => __('还没有保存 Claude API Key')]);
+            }
+            try {
+                $ai->test($store);
+
+                return response()->json(['ok' => true, 'message' => __('连接成功，AI 可以正常使用')]);
+            } catch (RuntimeException $e) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()]);
+            }
+        }
+        $key = LeadSettings::googleKey($store);
+        if (! $key) {
+            return response()->json(['ok' => false, 'message' => __('还没有保存 Google 地图 API Key')]);
+        }
+        try {
+            $r = \Illuminate\Support\Facades\Http::timeout(15)->withHeaders(['X-Goog-Api-Key' => $key, 'X-Goog-FieldMask' => 'places.id'])
+                ->post('https://places.googleapis.com/v1/places:searchText', ['textQuery' => 'phone accessories store in New York', 'pageSize' => 1]);
+        } catch (\Throwable) {
+            return response()->json(['ok' => false, 'message' => __('连接不上 Google 地图，请检查服务器网络')]);
+        }
+
+        return response()->json($r->successful()
+            ? ['ok' => true, 'message' => __('连接成功，Google 地图可以正常搜索')]
+            : ['ok' => false, 'message' => 'Google：'.($r->json('error.message') ?? 'HTTP '.$r->status())]);
+    }
+
     /** One sentence → a search the merchant can review and start. */
     public function plan(Request $request, CurrentStore $current, LeadAi $ai): JsonResponse
     {

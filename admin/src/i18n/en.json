@@ -2245,5 +2245,6 @@
   "有电话": "Has phone",
   "评分等级": "Grade",
   "当前筛选下没有带坐标的线索": "No leads with a location match these filters",
-  "另有 {0} 个推测": "+{0} guessed"
+  "另有 {0} 个推测": "+{0} guessed",
+  "测试连接": "Test connection"
 }

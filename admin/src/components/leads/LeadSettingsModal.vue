@@ -19,17 +19,36 @@ watch(() => props.show, (v) => {
   Object.assign(clear, { google: false, anthropic: false })
 })
 
+async function persist(): Promise<LeadSettings> {
+  const { data } = await http.put('/lead-finder/settings', {
+    google_key: form.google_key || null, anthropic_key: form.anthropic_key || null,
+    clear_google_key: clear.google, clear_anthropic_key: clear.anthropic, ai_auto: form.ai_auto, sender: form.sender,
+  })
+  emit('saved', data.settings)
+  return data.settings
+}
 async function save() {
   saving.value = true
   try {
-    const { data } = await http.put('/lead-finder/settings', {
-      google_key: form.google_key || null, anthropic_key: form.anthropic_key || null,
-      clear_google_key: clear.google, clear_anthropic_key: clear.anthropic, ai_auto: form.ai_auto, sender: form.sender,
-    })
-    emit('saved', data.settings)
+    await persist()
     emit('update:show', false)
     message.success(t('已保存'))
   } catch (e) { message.error(errorMessage(e)) } finally { saving.value = false }
+}
+
+// "Test connection": saves a newly typed key first, then makes one real request with it
+const testing = ref<'' | 'google' | 'anthropic'>('')
+const result = reactive<Record<string, { ok: boolean; message: string } | null>>({ google: null, anthropic: null })
+async function test(service: 'google' | 'anthropic') {
+  testing.value = service
+  result[service] = null
+  try {
+    if (form.google_key || form.anthropic_key) {
+      await persist()
+      Object.assign(form, { google_key: '', anthropic_key: '' })
+    }
+    result[service] = (await http.post('/lead-finder/settings/test', { service }, { timeout: 90000 })).data
+  } catch (e) { result[service] = { ok: false, message: errorMessage(e) } } finally { testing.value = '' }
 }
 </script>
 
@@ -45,7 +64,9 @@ async function save() {
       <div class="key-row">
         <NInput v-model:value="form.google_key" type="password" show-password-on="click" :placeholder="settings.google_key_set ? t('已保存（留空则不修改）') : 'AIza…'" :disabled="clear.google" />
         <NButton v-if="settings.google_key_set" quaternary size="small" @click="clear.google = !clear.google">{{ clear.google ? t('撤销') : t('移除') }}</NButton>
+        <NButton size="small" :loading="testing === 'google'" :disabled="clear.google || (!settings.google_ready && !form.google_key)" @click="test('google')">{{ t('测试连接') }}</NButton>
       </div>
+      <p v-if="result.google" class="result" :class="{ ok: result.google.ok }">{{ result.google.message }}</p>
     </div>
     <div class="src">
       <div class="src-head">
@@ -65,7 +86,9 @@ async function save() {
       <div class="key-row">
         <NInput v-model:value="form.anthropic_key" type="password" show-password-on="click" :placeholder="settings.anthropic_key_set ? t('已保存（留空则不修改）') : 'sk-ant-…'" :disabled="clear.anthropic" />
         <NButton v-if="settings.anthropic_key_set" quaternary size="small" @click="clear.anthropic = !clear.anthropic">{{ clear.anthropic ? t('撤销') : t('移除') }}</NButton>
+        <NButton size="small" :loading="testing === 'anthropic'" :disabled="clear.anthropic || (!settings.ai_ready && !form.anthropic_key)" @click="test('anthropic')">{{ t('测试连接') }}</NButton>
       </div>
+      <p v-if="result.anthropic" class="result" :class="{ ok: result.anthropic.ok }">{{ result.anthropic.message }}</p>
       <div class="toggle"><div><div>{{ t('搜索完成后自动 AI 分析') }}</div><div class="muted">{{ t('关闭后，只对你手动选中的线索做 AI 分析，更省费用。') }}</div></div><NSwitch v-model:value="form.ai_auto" /></div>
     </div>
 
@@ -102,6 +125,8 @@ async function save() {
 .state.on { color: var(--brand-700); font-weight: 500; }
 .key-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .toggle { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.result { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.6; background: var(--surface-muted); color: #3D4943; word-break: break-word; }
+.result.ok { background: var(--brand-50); color: var(--brand-800); }
 .pair { display: flex; gap: 8px; width: 100%; }
 .muted { color: var(--ink-muted); font-size: 12px; line-height: 1.6; }
 .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
