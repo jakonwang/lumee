@@ -10,19 +10,20 @@ const props = defineProps<{ show: boolean; settings: LeadSettings }>()
 const emit = defineEmits<{ (e: 'update:show', v: boolean): void; (e: 'saved', s: LeadSettings): void }>()
 const message = useMessage()
 
-const form = reactive({ google_key: '', anthropic_key: '', ai_auto: true, sender: {} as Sender })
+const form = reactive({ google_key: '', anthropic_key: '', anthropic_workspace: '', ai_auto: true, sender: {} as Sender })
 const clear = reactive({ google: false, anthropic: false })
 const saving = ref(false)
 watch(() => props.show, (v) => {
   if (!v) return
-  Object.assign(form, { google_key: '', anthropic_key: '', ai_auto: props.settings.ai_auto, sender: { ...props.settings.sender } })
+  Object.assign(form, { google_key: '', anthropic_key: '', anthropic_workspace: props.settings.anthropic_workspace ?? '', ai_auto: props.settings.ai_auto, sender: { ...props.settings.sender } })
   Object.assign(clear, { google: false, anthropic: false })
 })
 
 async function persist(): Promise<LeadSettings> {
   const { data } = await http.put('/lead-finder/settings', {
     google_key: form.google_key || null, anthropic_key: form.anthropic_key || null,
-    clear_google_key: clear.google, clear_anthropic_key: clear.anthropic, ai_auto: form.ai_auto, sender: form.sender,
+    clear_google_key: clear.google, clear_anthropic_key: clear.anthropic, anthropic_workspace: form.anthropic_workspace.trim() || null,
+    ai_auto: form.ai_auto, sender: form.sender,
   })
   emit('saved', data.settings)
   return data.settings
@@ -43,7 +44,7 @@ async function test(service: 'google' | 'anthropic') {
   testing.value = service
   result[service] = null
   try {
-    if (form.google_key || form.anthropic_key) {
+    if (form.google_key || form.anthropic_key || form.anthropic_workspace.trim() !== (props.settings.anthropic_workspace ?? '')) {
       await persist()
       Object.assign(form, { google_key: '', anthropic_key: '' })
     }
@@ -88,6 +89,10 @@ async function test(service: 'google' | 'anthropic') {
         <NButton v-if="settings.anthropic_key_set" quaternary size="small" @click="clear.anthropic = !clear.anthropic">{{ clear.anthropic ? t('撤销') : t('移除') }}</NButton>
         <NButton size="small" :loading="testing === 'anthropic'" :disabled="clear.anthropic || (!settings.ai_ready && !form.anthropic_key)" @click="test('anthropic')">{{ t('测试连接') }}</NButton>
       </div>
+      <div class="ws">
+        <NInput v-model:value="form.anthropic_workspace" size="small" placeholder="wrkspc_…" :disabled="clear.anthropic" />
+        <span class="muted">{{ t('Workspace ID（可选）：Key 不属于某个工作区时才需要填写，在 console.anthropic.com › Settings › Workspaces 里查看。') }}</span>
+      </div>
       <p v-if="result.anthropic" class="result" :class="{ ok: result.anthropic.ok }">{{ result.anthropic.message }}</p>
       <div class="toggle"><div><div>{{ t('搜索完成后自动 AI 分析') }}</div><div class="muted">{{ t('关闭后，只对你手动选中的线索做 AI 分析，更省费用。') }}</div></div><NSwitch v-model:value="form.ai_auto" /></div>
     </div>
@@ -125,6 +130,8 @@ async function test(service: 'google' | 'anthropic') {
 .state.on { color: var(--brand-700); font-weight: 500; }
 .key-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .toggle { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ws { display: grid; grid-template-columns: 200px 1fr; gap: 10px; align-items: center; margin-top: 8px; }
+@media (max-width: 560px) { .ws { grid-template-columns: 1fr; } }
 .result { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.6; background: var(--surface-muted); color: #3D4943; word-break: break-word; }
 .result.ok { background: var(--brand-50); color: var(--brand-800); }
 .pair { display: flex; gap: 8px; width: 100%; }

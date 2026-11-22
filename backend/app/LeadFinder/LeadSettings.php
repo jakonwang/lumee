@@ -16,7 +16,7 @@ final class LeadSettings
 
     public static function raw(Store $store): array
     {
-        return ($store->settings['lead_finder'] ?? []) + ['google_key' => null, 'anthropic_key' => null, 'ai_auto' => true, 'sender' => []];
+        return ($store->settings['lead_finder'] ?? []) + ['google_key' => null, 'anthropic_key' => null, 'anthropic_workspace' => null, 'ai_auto' => true, 'sender' => []];
     }
 
     public static function googleKey(Store $store): ?string
@@ -27,6 +27,12 @@ final class LeadSettings
     public static function anthropicKey(Store $store): ?string
     {
         return self::decrypt(self::raw($store)['anthropic_key']) ?: (config('services.anthropic.key') ?: null);
+    }
+
+    /** Organization-level keys (not tied to a workspace) must say which workspace to bill: sent as anthropic-workspace-id. */
+    public static function anthropicWorkspace(Store $store): ?string
+    {
+        return self::decrypt(self::raw($store)['anthropic_key']) ? (self::raw($store)['anthropic_workspace'] ?: null) : (config('services.anthropic.workspace') ?: null);
     }
 
     public static function aiAuto(Store $store): bool
@@ -54,6 +60,7 @@ final class LeadSettings
             'google_ready' => self::googleKey($store) !== null,
             'ai_ready' => self::anthropicKey($store) !== null,
             'ai_auto' => (bool) $r['ai_auto'],
+            'anthropic_workspace' => $r['anthropic_workspace'],
             'sender' => self::sender($store),
         ];
     }
@@ -67,6 +74,7 @@ final class LeadSettings
         $store->settings = [...($store->settings ?? []), 'lead_finder' => [
             'google_key' => $key('google_key'),
             'anthropic_key' => $key('anthropic_key'),
+            'anthropic_workspace' => array_key_exists('anthropic_workspace', $data) ? (trim((string) $data['anthropic_workspace']) ?: null) : $old['anthropic_workspace'],
             'ai_auto' => (bool) ($data['ai_auto'] ?? $old['ai_auto']),
             'sender' => array_intersect_key($data['sender'] ?? $old['sender'], array_flip(self::SENDER_FIELDS)),
         ]];

@@ -24,7 +24,7 @@ export interface LeadStats { total: number; with_email: number; with_phone: numb
 export interface Sender { company: string; name: string; title: string; products: string; advantages: string; moq: string; website: string; whatsapp: string; email: string }
 export interface LeadSettings {
   google_key_set: boolean; anthropic_key_set: boolean; google_platform: boolean; anthropic_platform: boolean
-  google_ready: boolean; ai_ready: boolean; ai_auto: boolean; sender: Sender
+  google_ready: boolean; ai_ready: boolean; ai_auto: boolean; anthropic_workspace: string | null; sender: Sender
 }
 export interface LeadMeta {
   profiles: { key: string; label: string; pitch: string; buyers: string[] }[]

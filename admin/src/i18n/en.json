@@ -2246,5 +2246,6 @@
   "评分等级": "Grade",
   "当前筛选下没有带坐标的线索": "No leads with a location match these filters",
   "另有 {0} 个推测": "+{0} guessed",
-  "测试连接": "Test connection"
+  "测试连接": "Test connection",
+  "Workspace ID（可选）：Key 不属于某个工作区时才需要填写，在 console.anthropic.com › Settings › Workspaces 里查看。": "Workspace ID (optional): only needed when the key isn't tied to a workspace — find it at console.anthropic.com › Settings › Workspaces."
 }

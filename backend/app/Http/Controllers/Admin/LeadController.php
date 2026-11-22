@@ -55,10 +55,11 @@ class LeadController extends Controller
         $data = $request->validate([
             'google_key' => ['nullable', 'string', 'max:200'],
             'anthropic_key' => ['nullable', 'string', 'max:300'],
+            'anthropic_workspace' => ['nullable', 'string', 'max:100', 'regex:/^wrkspc_[A-Za-z0-9]+$/'],
             'ai_auto' => ['boolean'],
             'sender' => ['array'],
             'sender.*' => ['nullable', 'string', 'max:500'],
-        ]);
+        ], ['anthropic_workspace.regex' => __('Workspace ID 以 wrkspc_ 开头，请从 console.anthropic.com › Settings › Workspaces 复制')]);
         foreach (['google_key', 'anthropic_key'] as $k) {     // clear_x empties it; blank keeps the saved key
             if ($request->boolean("clear_{$k}")) {
                 $data[$k] = '';

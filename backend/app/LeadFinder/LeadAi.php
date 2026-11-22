@@ -169,7 +169,8 @@ class LeadAi
         if (! $key) {
             throw new RuntimeException('还没有配置 AI（Claude API Key）');
         }
-        $client = new Client(apiKey: $key);
+        $workspace = LeadSettings::anthropicWorkspace($store);
+        $client = new Client(apiKey: $key, requestOptions: $workspace ? ['extraHeaders' => ['anthropic-workspace-id' => $workspace]] : null);
         $messages = [['role' => 'user', 'content' => $prompt]];
         $outputConfig = ['effort' => $effort, 'format' => ['type' => 'json_schema', 'schema' => $schema]];
         try {
@@ -241,6 +242,8 @@ class LeadAi
         return match (true) {
             (bool) preg_match('/credit balance|billing|purchase credits|insufficient/i', $reason) => 'Claude 账户余额不足：请到 console.anthropic.com 的 Billing 页面充值后再试',
             (bool) preg_match('/spend limit|usage limit|monthly limit/i', $reason) => 'Claude 账户已达到消费上限：请到 console.anthropic.com 提高 Limits 后再试',
+            (bool) preg_match('/not scoped to a workspace|anthropic-workspace-id/i', $reason) => '这个 Claude API Key 是组织级的，没有绑定工作区：请在获客设置里填写 Workspace ID（在 console.anthropic.com › Settings › Workspaces 里，以 wrkspc_ 开头），或者在某个工作区里新建一个 API Key 换上',
+            (bool) preg_match('/workspace/i', $reason) && (bool) preg_match('/not found|invalid|does not exist/i', $reason) => 'Workspace ID 不正确：请到 console.anthropic.com › Settings › Workspaces 复制正确的 ID（以 wrkspc_ 开头）',
             (bool) preg_match('/overloaded/i', $reason) => 'AI 服务繁忙，请稍后再试',
             default => 'AI 服务报错：'.$reason,
         };
