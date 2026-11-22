@@ -95,6 +95,18 @@ class Promotions
         return $this->saleCache[$key] ??= ($p = $this->saleFor($productId, $price)) ? $price - $p->reduce($price) : $price;
     }
 
+    /** Spend-more tiers; thresholds and fixed values are in the store currency, so converted inside a market. */
+    private function tiers(Promotion $p): array
+    {
+        $markets = app(\App\Markets\MarketContext::class);
+
+        return array_map(fn ($t) => [
+            ...$t,
+            'min' => $markets->money((int) ($t['min'] ?? 0)),
+            'value' => $p->value_type === 'percentage' ? (float) ($t['value'] ?? 0) : $markets->money((int) round((float) ($t['value'] ?? 0) * 100)) / 100,
+        ], (array) ($p->config['tiers'] ?? []));
+    }
+
     private function saleCovers(Promotion $p, int $productId): bool
     {
         return match ($p->config['applies_to'] ?? 'all') {
@@ -119,7 +131,7 @@ class Promotions
         // Spend-more tiers: the single best tier across tiered promotions
         $bestTier = null;
         foreach ($this->active()->where('type', 'tiered') as $p) {
-            $tier = collect($p->config['tiers'] ?? [])->filter(fn ($t) => $subtotal >= (int) $t['min'])->sortByDesc('min')->first();
+            $tier = collect($this->tiers($p))->filter(fn ($t) => $subtotal >= (int) $t['min'])->sortByDesc('min')->first();
             if (! $tier) {
                 continue;
             }
@@ -196,7 +208,7 @@ class Promotions
     {
         $next = null;
         foreach ($this->active()->where('type', 'tiered') as $p) {
-            foreach ($p->config['tiers'] ?? [] as $t) {
+            foreach ($this->tiers($p) as $t) {
                 if ((int) $t['min'] > $subtotal && (! $next || (int) $t['min'] < $next['min'])) {
                     $next = ['min' => (int) $t['min'], 'missing' => (int) $t['min'] - $subtotal, 'value' => (float) $t['value'], 'value_type' => $p->value_type];
                 }

@@ -27,7 +27,7 @@ class ProductVariant extends Model
     }
 
     protected $fillable = [
-        'product_id', 'image_id', 'title', 'sku', 'price', 'compare_at_price',
+        'product_id', 'image_id', 'title', 'sku', 'price', 'compare_at_price', 'cost',
         'inventory_quantity', 'weight', 'options', 'position',
     ];
 
@@ -37,6 +37,7 @@ class ProductVariant extends Model
             'options' => 'array',
             'price' => 'integer',
             'compare_at_price' => 'integer',
+            'cost' => 'integer',
             'inventory_quantity' => 'integer',
             'weight' => 'integer',
         ];
@@ -63,10 +64,18 @@ class ProductVariant extends Model
             $promos = app(\App\Promotions\Promotions::class);
             if ($promos->enabled()) {
                 $raw = (int) parent::getAttribute('price');
+                $compare = parent::getAttribute('compare_at_price');
+                // Inside a market: the market's fixed price, else the store price converted (sales apply on top)
+                $markets = app(\App\Markets\MarketContext::class);
+                $storeId = parent::getAttribute('store_id');   // not always selected (e.g. "variants:id,price")
+                if ($markets->activeFor($storeId === null ? null : (int) $storeId)) {
+                    [$raw, $compare] = $markets->variantPrices((int) parent::getAttribute('id'), $raw, $compare === null ? null : (int) $compare);
+                    $value = $key === 'price' ? $raw : $compare;
+                }
                 $sale = $promos->salePrice((int) parent::getAttribute('product_id'), $raw);
                 $best = min($sale, app(\App\Pricing\PriceLists::class)->price((int) parent::getAttribute('id'), $raw));
                 if ($best !== $raw) {
-                    return $key === 'price' ? $best : max($raw, (int) parent::getAttribute('compare_at_price'));
+                    return $key === 'price' ? $best : max($raw, (int) $compare);
                 }
             }
 

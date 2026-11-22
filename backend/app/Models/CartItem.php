@@ -10,11 +10,11 @@ class CartItem extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['cart_id', 'variant_id', 'quantity', 'plan'];
+    protected $fillable = ['cart_id', 'variant_id', 'quantity', 'plan', 'gift'];
 
     protected function casts(): array
     {
-        return ['quantity' => 'integer'];
+        return ['quantity' => 'integer', 'gift' => 'array'];   // gift: gift card recipient {email, name, message}
     }
 
     public function cart(): BelongsTo

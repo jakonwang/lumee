@@ -14,13 +14,13 @@ class ProductImage extends Model
 
     protected function casts(): array
     {
-        return ['width' => 'integer', 'height' => 'integer', 'size' => 'integer', 'position' => 'integer'];
+        return ['width' => 'integer', 'height' => 'integer', 'size' => 'integer', 'position' => 'integer', 'processed' => 'array'];
     }
 
     protected static function booted(): void
     {
         // Remove the file when the record goes away
-        static::deleted(fn (ProductImage $img) => Storage::disk($img->disk)->delete($img->path));
+        static::deleted(fn (ProductImage $img) => Storage::disk($img->disk)->delete(array_filter([$img->path, $img->original_path])));
     }
 
     public function url(): string
@@ -36,6 +36,8 @@ class ProductImage extends Model
             'alt' => $this->alt,
             'width' => $this->width,
             'height' => $this->height,
+            'processed' => (bool) $this->original_path,   // standardized by the content workshop (revertable)
+            'ai' => $this->processed['ai'] ?? null,         // "scene": made by an image generation service
         ];
     }
 }

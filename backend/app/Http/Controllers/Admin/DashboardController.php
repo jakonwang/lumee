@@ -28,8 +28,8 @@ class DashboardController extends Controller
         $data = ['currency' => $current->getOrFail()->currency, 'todos' => []];
 
         if ($current->can('analytics')) {
-            // Net sales (after refunds)
-            $data['revenue'] = Money::format((int) Order::whereIn('financial_status', Order::PAID_STATUSES)->sum(\DB::raw('total - refunded_total')));
+            // Net sales (after refunds), in the store currency (market orders converted at their order's rate)
+            $data['revenue'] = Money::format((int) round((float) Order::whereIn('financial_status', Order::PAID_STATUSES)->sum(\DB::raw('(total - refunded_total) / exchange_rate'))));
         }
         if ($current->can('orders')) {
             $data['orders'] = Order::count();
@@ -67,6 +67,10 @@ class DashboardController extends Controller
             $data['todos'][] = ['key' => 'low_stock', 'count' => ProductVariant::where('inventory_quantity', '<=', self::LOW_STOCK)
                 ->whereHas('product', fn ($q) => $q->where('status', 'active'))->distinct()->count('product_id'), 'route' => 'products'];
             $data['todos'][] = ['key' => 'pending_reviews', 'count' => ProductReview::where('status', 'pending')->count(), 'route' => 'reviews'];
+        }
+        if ($current->can('online_store')) {
+            // Campaign designs prepared from the shopping calendar, waiting for the merchant's OK
+            $data['todos'][] = ['key' => 'campaign_designs', 'count' => \App\Models\ThemeSchedule::where('status', 'review')->count(), 'route' => 'online-store'];
         }
         if ($current->can('customers')) {
             $data['customers'] = Customer::count();

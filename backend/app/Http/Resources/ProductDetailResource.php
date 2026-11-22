@@ -23,6 +23,8 @@ class ProductDetailResource extends JsonResource
             'taxable' => (bool) ($this->taxable ?? true),
             'is_gift_card' => (bool) $this->is_gift_card,
             'b2b_only' => (bool) $this->b2b_only,
+            'size_chart' => $this->size_chart,
+            'supplier_id' => $this->supplier_id,
             'stock_alerts' => \App\Models\StockAlert::where('product_id', $this->id)->whereNull('notified_at')->count(),
             'subscription' => \App\Subscriptions\Plans::config($this->resource),
             'preorder' => \App\Catalog\Preorders::config($this->resource),

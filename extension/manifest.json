@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Lumée Collector",
+  "version": "1.0.0",
+  "description": "Send the product page you have open to your Lumée store's collection list (Products › Collect).",
+  "action": { "default_popup": "popup.html", "default_title": "Lumée Collector" },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"]
+}

@@ -103,7 +103,7 @@
                         <p class="muted" style="margin:0;">{{ __("You haven't placed any orders yet.") }} <a href="/" style="color:var(--rose-gold-700);text-decoration:underline;">{{ __('Start shopping') }}</a></p>
                     @else
                         <table class="orders">
-                            <thead><tr><th>{{ __('Order') }}</th><th class="hide-sm">{{ __('Date') }}</th><th>{{ __('Status') }}</th><th style="text-align:right">{{ __('Total') }}</th></tr></thead>
+                            <thead><tr><th>{{ __('Order') }}</th><th class="hide-sm">{{ __('Date') }}</th><th>{{ __('Status') }}</th><th style="text-align: end">{{ __('Total') }}</th></tr></thead>
                             <tbody>
                                 @foreach ($orders as $order)
                                     @php
@@ -119,7 +119,7 @@
                                         <td><a href="/orders/{{ $order->token }}">{{ $order->name() }}</a><div class="muted" style="font-size:12px;">{{ trans_choice(':count item|:count items', $order->items->sum('quantity')) }}</div></td>
                                         <td class="hide-sm">{{ $order->created_at->locale(app()->getLocale())->isoFormat('LL') }}</td>
                                         <td><span class="pill {{ $status[1] ? 'muted' : '' }}">{{ $status[0] }}</span></td>
-                                        <td style="text-align:right" class="money">{{ \App\Support\Money::display($order->total - $order->refunded_total, $order->currency) }}</td>
+                                        <td style="text-align: end" class="money">{{ \App\Support\Money::display($order->total - $order->refunded_total, $order->currency) }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -166,7 +166,7 @@
                     <form method="post" action="/account/profile" class="form-stack">
                         @csrf
                         <div class="muted">{{ $customer->email }}
-                            @if ($customer->isVerified())<span class="pill" style="margin-left:6px;">{{ __('Confirmed') }}</span>@endif
+                            @if ($customer->isVerified())<span class="pill" style="margin-inline-start:6px;">{{ __('Confirmed') }}</span>@endif
                         </div>
                         <input class="field" name="first_name" value="{{ $customer->first_name }}" placeholder="{{ __('First name') }}" aria-label="{{ __('First name') }}" required>
                         <input class="field" name="last_name" value="{{ $customer->last_name }}" placeholder="{{ __('Last name') }}" aria-label="{{ __('Last name') }}" required>

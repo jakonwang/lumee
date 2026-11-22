@@ -76,5 +76,7 @@ return [
     // Lead finder: platform-wide fallbacks when a store hasn't set its own key
     'google_places' => ['key' => env('GOOGLE_PLACES_KEY')],
     'anthropic' => ['key' => env('ANTHROPIC_API_KEY'), 'workspace' => env('ANTHROPIC_WORKSPACE_ID')],
+    // Product research radar: Google Trends / Shopping through serpapi.com (stores can also set their own key)
+    'serpapi' => ['key' => env('SERPAPI_KEY')],
 
 ];

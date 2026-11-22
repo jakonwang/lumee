@@ -26,8 +26,11 @@ class SafeFetcher
         $this->resolver = $resolver ?? fn (string $host) => gethostbynamel($host) ?: [];
     }
 
-    /** @return array{url: string, html: string} @throws RuntimeException with a merchant-readable reason */
-    public function get(string $url, int $timeout = 8): array
+    /**
+     * @param  bool  $json  expect a JSON document instead of a web page (body returned in "html")
+     * @return array{url: string, html: string} @throws RuntimeException with a merchant-readable reason
+     */
+    public function get(string $url, int $timeout = 8, bool $json = false): array
     {
         for ($hop = 0; $hop <= 4; $hop++) {
             [$host, $port] = $this->check($url);
@@ -41,7 +44,7 @@ class SafeFetcher
                 }
             }
 
-            $response = $this->request($url, $host, $port, $ips[0], $timeout);
+            $response = $this->request($url, $host, $port, $ips[0], $timeout, $json);
 
             if ($response->redirect()) {
                 $next = $response->header('Location');
@@ -57,8 +60,8 @@ class SafeFetcher
                     ? '网站开启了访问防护（HTTP '.$response->status().'）' : '网站返回 HTTP '.$response->status());
             }
             $type = strtolower($response->header('Content-Type'));
-            if ($type !== '' && ! str_contains($type, 'html')) {
-                throw new RuntimeException('不是网页');
+            if ($json ? ! str_contains($type, 'json') : ($type !== '' && ! str_contains($type, 'html'))) {
+                throw new RuntimeException($json ? '不是 JSON 数据' : '不是网页');
             }
             $body = $response->body();
 
@@ -67,7 +70,7 @@ class SafeFetcher
         throw new RuntimeException('跳转次数过多');
     }
 
-    private function request(string $url, string $host, int $port, string $ip, int $timeout): Response
+    private function request(string $url, string $host, int $port, string $ip, int $timeout, bool $json = false): Response
     {
         try {
             return Http::timeout($timeout)->connectTimeout(5)
@@ -75,7 +78,7 @@ class SafeFetcher
                     'allow_redirects' => false,
                     'curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:{$ip}"], CURLOPT_MAXFILESIZE => self::MAX_BYTES],   // pin to the checked IP
                 ])
-                ->withHeaders(['User-Agent' => self::USER_AGENT, 'Accept' => 'text/html,application/xhtml+xml', 'Accept-Language' => 'en,*;q=0.5'])
+                ->withHeaders(['User-Agent' => self::USER_AGENT, 'Accept' => $json ? 'application/json' : 'text/html,application/xhtml+xml', 'Accept-Language' => 'en,*;q=0.5'])
                 ->get($url);
         } catch (ConnectionException $e) {
             $m = $e->getMessage();

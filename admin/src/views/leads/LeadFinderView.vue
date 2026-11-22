@@ -291,7 +291,7 @@ onBeforeUnmount(() => clearTimeout(poll))
   <div class="lf">
     <div class="page-head">
       <div>
-        <div class="eyebrow">Lead Finder</div>
+        <div class="eyebrow">B2B wholesale</div>
         <h1 class="page-title">{{ t('获客雷达') }}</h1>
         <p class="page-sub">{{ t('输入产品和目标市场，自动找到当地的批发商、维修店和零售商，读取他们官网公开的联系方式，按匹配度打分，并一键生成当地语言的开发信。') }}</p>
       </div>

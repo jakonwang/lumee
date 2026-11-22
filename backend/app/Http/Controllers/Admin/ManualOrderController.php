@@ -169,7 +169,9 @@ class ManualOrderController extends Controller
             ]);
             $order->forceFill([
                 'source' => $data['source'] ?? 'admin', 'created_by' => $userId, 'company_id' => $data['company_id'] ?? null,
-                'po_number' => $data['po_number'] ?? null,
+                'po_number' => $data['po_number'] ?? null, 'wholesale_catalog_id' => $data['wholesale_catalog_id'] ?? null,
+                // Created inside a market (distributor orders through a market catalog): its currency and rate
+                'market_id' => app(\App\Markets\MarketContext::class)->market()?->id, 'exchange_rate' => app(\App\Markets\MarketContext::class)->rate(),
                 'payment_due_at' => ($data['gateway'] ?? null) === 'terms' ? now()->addDays(max(1, (int) ($data['payment_due_days'] ?? 30))) : null,
             ])->save();
 
@@ -187,7 +189,11 @@ class ManualOrderController extends Controller
                 ]);
                 Inventory::change($v->id, -$qty, 'order', $order->id);
             }
-            $order->log('placed', ($data['source'] ?? 'admin') === 'quote' ? __('买家接受了报价 :p0', ['p0' => $data['quote_name'] ?? '']) : __('商家在后台创建了订单'));
+            $order->log('placed', match ($data['source'] ?? 'admin') {
+                'quote' => __('买家接受了报价 :p0', ['p0' => $data['quote_name'] ?? '']),
+                'wholesale_api' => __('分销商通过批发目录「:p0」的接口下单，确认运费和付款方式后再发货', ['p0' => $data['catalog_name'] ?? '']),
+                default => __('商家在后台创建了订单'),
+            });
 
             return $order;
         });

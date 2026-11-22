@@ -72,7 +72,7 @@ class CheckoutService
             $subtotal = 0;
             foreach ($cart->items as $item) {
                 $variant = $variants->get($item->variant_id);
-                if (! $variant || $variant->product->status !== 'active') {
+                if (! $variant || ! $variant->product->isSellable()) {
                     throw ValidationException::withMessages(['cart' => __('An item in your bag is no longer available.')]);
                 }
                 if (! \App\Catalog\Preorders::allows($variant, (int) $item->quantity)) {
@@ -84,7 +84,7 @@ class CheckoutService
                 $unit = \App\Subscriptions\Plans::price($variant->product, $tier, $item->plan);
                 $lineTotal = $unit * $item->quantity;
                 $subtotal += $lineTotal;
-                $lines[] = [$variant, $item->quantity, $lineTotal, $unit, $item->plan];
+                $lines[] = [$variant, $item->quantity, $lineTotal, $unit, $item->plan, $item->gift];
             }
 
             // Re-check the discount at purchase time, locking it so usage limits hold under concurrency
@@ -109,6 +109,9 @@ class CheckoutService
                 throw ValidationException::withMessages(['shipping_rate_id' => __('Please choose a shipping method.')]);
             }
             $totals = app(DiscountService::class)->totals($subtotal, $rate->price, $discounts);
+            // Import duties charged at checkout in markets set up that way (on the goods after discount)
+            $duty = \App\Markets\MarketSettings::duties(max(0, $subtotal - $totals['discount']))['amount'];
+            $totals['total'] += $duty;
 
             // Tax (only taxable products; discount spread over items; shipping if the store taxes it)
             $taxableSubtotal = array_sum(array_map(fn ($l) => $l[0]->product->taxable ? $l[2] : 0, $lines));
@@ -119,6 +122,16 @@ class CheckoutService
                     $totals['shipping'], $data['country'], $data['province'] ?? null, $data);
             if (! $tax['included']) {
                 $totals['total'] += $tax['amount'];
+            }
+
+            // Cash on delivery: local addresses only, up to the market's ceiling, plus its fee
+            $paymentFee = 0;
+            if (($data['payment_gateway'] ?? null) === 'cod') {
+                $paymentFee = (int) (\App\Payments\CashOnDeliveryGateway::settings()['fee'] ?? 0);
+                $totals['total'] += $paymentFee;
+                if ($why = \App\Payments\CashOnDeliveryGateway::refusal($totals['total'], $data['country'], $data['phone'] ?? null, $physical)) {
+                    throw ValidationException::withMessages(['payment_gateway' => $why]);
+                }
             }
 
             $customer = Customer::firstOrNew(['email' => Str::lower($data['email'])]);
@@ -143,20 +156,24 @@ class CheckoutService
                 'token' => (string) Str::uuid(),
                 'customer_id' => $customer->id,
                 'email' => $customer->email,
-                'currency' => $store->currency,
+                'currency' => $store->currency,   // the market currency inside a market
                 'locale' => $locale,
+                'market_id' => app(\App\Markets\MarketContext::class)->market()?->id,
+                'exchange_rate' => app(\App\Markets\MarketContext::class)->rate(),
                 'subtotal' => $subtotal,
                 'shipping_total' => $totals['shipping'],
                 'discount_code' => $discount?->code,
                 'discount_total' => $totals['discount'],
                 'discount_lines' => $discounts['lines'] ?: null,
                 'tax_total' => $tax['amount'],
+                'duty_total' => $duty,
+                'payment_fee' => $paymentFee,
                 'taxes_included' => $tax['included'],
                 'tax_lines' => $tax['lines'] ?: null,
                 'total' => $totals['total'],
                 'shipping_address' => collect($data)->only(
-                    'first_name', 'last_name', 'address1', 'address2', 'city', 'province', 'zip', 'country', 'phone'
-                )->all(),
+                    'first_name', 'last_name', 'address1', 'address2', 'city', 'province', 'zip', 'country', 'phone', 'tax_id'
+                )->filter(fn ($v, $k) => $k !== 'tax_id' || $v)->all(),
                 'shipping_method' => array_filter([
                     'id' => $rate->id, 'name' => $rate->name, 'description' => $rate->description, 'price' => $rate->price,
                     'type' => $rate->id === \App\Shipping\Pickup::DIGITAL_ID ? 'digital' : ($rate->id <= -100 ? 'pickup' : 'shipping'),
@@ -188,7 +205,7 @@ class CheckoutService
                 \App\Models\Promotion::withoutGlobalScope('store')->whereKey($p['id'])->incrementEach(['orders_count' => 1, 'discount_total' => $p['amount']]);
             }
 
-            foreach ($lines as [$variant, $qty, $lineTotal, $unit, $plan]) {
+            foreach ($lines as [$variant, $qty, $lineTotal, $unit, $plan, $gift]) {
                 $order->items()->create([
                     'product_id' => $variant->product_id,
                     'variant_id' => $variant->id,
@@ -201,6 +218,7 @@ class CheckoutService
                     'plan' => $plan,
                     'total' => $lineTotal,
                     'preorder' => \App\Catalog\Preorders::isPreorder($variant, $qty),
+                    'gift' => $variant->product->is_gift_card ? $gift : null,
                 ]);
                 // Reserve stock at order placement (Shopify default behaviour)
                 \App\Services\Inventory::change($variant->id, -$qty, 'order', $order->id);

@@ -112,7 +112,7 @@ class OpsController extends Controller
             'members' => $store->users()->count(),
             'products' => Product::withoutGlobalScope('store')->where('store_id', $id)->count(),
             'orders' => (clone $orders)->count(),
-            'gmv_total' => Money::format((int) (clone $paid)->sum(DB::raw('total - refunded_total'))),
+            'gmv_total' => Money::format((int) (clone $paid)->sum(DB::raw('(total - refunded_total) / exchange_rate'))),
             'fees_pending_usd' => $pending['usd'] !== null ? Money::format($pending['usd']) : null,
             'domains' => $store->domains->map->only('host', 'type', 'is_primary', 'verified_at'),
             'invoices' => PlatformInvoice::withoutGlobalScope('store')->where('store_id', $id)->latest('id')->limit(50)->get()->map->toApi(),
@@ -192,7 +192,7 @@ class OpsController extends Controller
         $sub = $s->subscription;
         $state = $this->billing->state($s, $sub);
         $gmv30 = Order::withoutGlobalScope('store')->where('store_id', $s->id)->whereIn('financial_status', Order::PAID_STATUSES)
-            ->where('paid_at', '>=', now()->subDays(30))->sum(DB::raw('total - refunded_total'));
+            ->where('paid_at', '>=', now()->subDays(30))->sum(DB::raw('(total - refunded_total) / exchange_rate'));
 
         return [
             'id' => $s->id,

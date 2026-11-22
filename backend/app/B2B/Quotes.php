@@ -85,7 +85,8 @@ class Quotes
         $a = $quote->shipping_address ?? [];
         $terms = (int) ($company?->payment_terms ?? 0);
 
-        $order = app(ManualOrderController::class)->create($store, [
+        // Quotes are priced in the store currency, even when the buyer opens the link inside a market
+        $order = app(\App\Markets\MarketContext::class)->within(null, fn () => app(ManualOrderController::class)->create($store, [
             'email' => $quote->email, 'first_name' => $a['first_name'] ?? null, 'last_name' => $a['last_name'] ?? null,
             'phone' => $a['phone'] ?? null, 'address1' => $a['address1'] ?? null, 'address2' => $a['address2'] ?? null,
             'city' => $a['city'] ?? null, 'province' => $a['province'] ?? null, 'zip' => $a['zip'] ?? null, 'country' => $a['country'] ?? null,
@@ -95,7 +96,7 @@ class Quotes
             'charge_tax' => ! ($company?->tax_exempt ?? false), 'payment' => 'pending', 'notify' => true,
             'gateway' => $terms > 0 ? 'terms' : 'manual', 'payment_due_days' => $terms,
             'source' => 'quote', 'quote_name' => $quote->name(), 'company_id' => $company?->id, 'po_number' => $po,
-        ], null);
+        ], null));
 
         $quote->forceFill(['status' => 'accepted', 'order_id' => $order->id])->save();
         $this->mail($quote, 'quote_accepted', 'merchant');

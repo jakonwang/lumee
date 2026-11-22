@@ -11,14 +11,14 @@
     .rte h2 { font-family: var(--font-display); font-size: 26px; margin: 36px 0 12px; font-weight: 600; }
     .rte h3 { font-size: 18px; margin: 28px 0 8px; }
     .rte p { margin: 0 0 16px; }
-    .rte ul, .rte ol { padding-left: 22px; margin: 0 0 16px; }
+    .rte ul, .rte ol { padding-inline-start: 22px; margin: 0 0 16px; }
     .rte li { margin-bottom: 6px; }
     .rte a { color: var(--rose-gold-700); text-decoration: underline; }
-    .rte blockquote { margin: 0 0 16px; padding: 4px 0 4px 16px; border-left: 3px solid var(--rose-gold-300); color: var(--ink-muted); }
+    .rte blockquote { margin: 0 0 16px; padding: 4px 0 4px 16px; border-inline-start: 3px solid var(--rose-gold-300); color: var(--ink-muted); }
     .rte img { max-width: 100%; height: auto; border-radius: 8px; }
     .rte hr { border: 0; border-top: 1px solid var(--border); margin: 32px 0; }
     .rte table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
-    .rte th, .rte td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+    .rte th, .rte td { border: 1px solid var(--border); padding: 8px 10px; text-align: start; }
 </style>
 @endpush
 

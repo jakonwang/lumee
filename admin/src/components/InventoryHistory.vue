@@ -50,7 +50,7 @@ async function apply() {
 
 const reasonLabel: Record<string, string> = {
   created: t('创建商品'), edit: t('编辑商品'), manual: t('手动调整'), order: t('订单'), refund: t('退款退回'),
-  cancel: t('取消订单退回'), import: t('CSV 导入'), api: t('API'), copy: t('从其他店铺复制'),
+  cancel: t('取消订单退回'), import: t('CSV 导入'), api: t('API'), copy: t('从其他店铺复制'), purchase: t('采购入库'),
 }
 </script>
 

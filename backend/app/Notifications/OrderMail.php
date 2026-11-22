@@ -52,6 +52,12 @@ class OrderMail extends Mailable
     /** "/fr" when the shopper used a non-default storefront language (links keep them in it). */
     public static function localePrefix(?string $locale, Store $store): string
     {
+        // Sent inside a market (checkout there, or a recovery email for a cart started there): its URLs
+        $market = app(\App\Markets\MarketContext::class)->market();
+        if ($market && $market->store_id === $store->id) {
+            return $market->prefix(in_array($locale, $market->languages(), true) ? $locale : null);
+        }
+
         return $locale && $locale !== \App\I18n\Localization::storeDefault($store)
             && in_array($locale, \App\I18n\Localization::enabled($store), true) ? '/'.$locale : '';
     }

@@ -113,7 +113,7 @@ const resendOptions = computed(() => {
   if (!o) return []
   return [
     { key: 'order_confirmation', label: t('订单确认（发给买家）') },
-    { key: 'payment_received', label: t('收款确认（发给买家）'), disabled: o.financial_status !== 'paid' || o.payment_gateway !== 'manual' },
+    { key: 'payment_received', label: t('收款确认（发给买家）'), disabled: o.financial_status !== 'paid' || !['manual', 'cod'].includes(o.payment_gateway) },
     { key: 'shipping_confirmation', label: t('发货通知（发给买家）'), disabled: o.fulfillment_status !== 'fulfilled' },
     { key: 'order_cancelled', label: t('订单取消（发给买家）'), disabled: !o.cancelled_at },
     { key: 'refund_notification', label: t('退款通知（发给买家）'), disabled: o.refunded_total === '0.00' },
@@ -251,6 +251,7 @@ onMounted(load)
                 <small v-if="i.sku">SKU: {{ i.sku }}</small>
                 <small v-if="i.refunded_quantity" class="refunded">{{ t('已退 {0} 件', [i.refunded_quantity]) }}</small>
                 <small v-if="i.preorder" class="pre">{{ t('预售') }}</small>
+                <small v-if="i.gift" class="muted">{{ t('礼品卡寄给 {0}', [i.gift.name ? `${i.gift.name} <${i.gift.email}>` : i.gift.email]) }}</small>
               </div>
               <div class="muted">{{ order.currency }} {{ i.price }} × {{ i.quantity }}</div>
               <div class="amt">{{ order.currency }} {{ i.total }}</div>
@@ -269,6 +270,8 @@ onMounted(load)
             <div v-if="order.tax_total !== '0.00' && !order.taxes_included" class="row">
               <span>{{ order.tax_lines?.[0] ? `${order.tax_lines[0].name} ${order.tax_lines[0].rate}%` : t('税费') }}</span><span>{{ order.currency }} {{ order.tax_total }}</span>
             </div>
+            <div v-if="order.payment_fee && order.payment_fee !== '0.00'" class="row"><span>{{ t('货到付款手续费') }}</span><span>{{ order.currency }} {{ order.payment_fee }}</span></div>
+            <div v-if="order.duty_total && order.duty_total !== '0.00'" class="row"><span>{{ t('进口关税') }}</span><span>{{ order.currency }} {{ order.duty_total }}</span></div>
             <div v-if="order.gift_card_total && order.gift_card_total !== '0.00'" class="row discount"><span>{{ t('礼品卡') }}</span><span>−{{ order.currency }} {{ order.gift_card_total }}</span></div>
             <div class="row total"><span>{{ t('合计') }}</span><span>{{ order.currency }} {{ order.total }}</span></div>
             <div v-if="order.tax_total !== '0.00' && order.taxes_included" class="row muted">
@@ -369,6 +372,7 @@ onMounted(load)
             <div class="strong">{{ order.customer_name }}</div>
             <div class="muted">{{ order.email }}</div>
             <div v-if="addr.phone" class="muted">{{ addr.phone }}</div>
+            <div v-if="addr.tax_id" class="muted">{{ t('税号：{0}', [addr.tax_id]) }}</div>
           </NCard>
           <NCard :title="t('收货地址')" size="small">
             <div class="addr">

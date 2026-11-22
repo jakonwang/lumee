@@ -89,6 +89,14 @@ class StripeGateway implements PaymentGateway
             if ($order->tax_total > 0 && ! $order->taxes_included) {
                 $lines[] = [($order->tax_lines[0]['name'] ?? 'Tax').' '.($order->tax_lines[0]['rate'] ?? '').'%', $order->tax_total, 1];
             }
+            if ($order->duty_total > 0) {
+                $lines[] = ['Import duties', $order->duty_total, 1];   // charged at checkout in some markets
+            }
+            // Anything else that changes the amount due (a gift card paying part of it…): charge the exact total
+            if (array_sum(array_map(fn ($l) => $l[1] * $l[2], $lines)) !== (int) $order->total) {
+                $count = $order->items->sum('quantity');
+                $lines = [["Order {$order->name()} ({$count} ".($count === 1 ? 'item' : 'items').')', $order->total, 1]];
+            }
         }
 
         foreach (array_values($lines) as $n => [$name, $amount, $qty]) {
@@ -98,8 +106,13 @@ class StripeGateway implements PaymentGateway
             $params["line_items[{$n}][price_data][product_data][name]"] = $name;
         }
 
+        // Card installments (Mexico MSI / Brazil parcelamento) where the market offers them
+        if (! $subscribing && Installments::forOrder($order)) {
+            $params['payment_method_options[card][installments][enabled]'] = 'true';
+        }
+
         // Extra methods the store turned on (Klarna, Alipay…) — only those that take this currency
-        $methods = $subscribing ? [] : PaymentSettings::for($order->store()->first())->stripeMethods();   // saved-card renewals need cards
+        $methods = $subscribing ? [] : PaymentSettings::for($order->store()->first())->stripeMethods($order->currency);   // saved-card renewals need cards
         $base = $params;
         if ($methods) {
             foreach (['card', ...$methods] as $i => $m) {

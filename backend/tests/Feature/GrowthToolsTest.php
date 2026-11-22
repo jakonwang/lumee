@@ -87,6 +87,35 @@ class GrowthToolsTest extends TestCase
         $this->assertSame('unfulfilled', $order2->fresh()->fulfillment_status);
     }
 
+    public function test_gift_card_bought_for_someone_else(): void
+    {
+        $variant = $this->product(['title' => 'Gift Card', 'price' => 25, 'is_gift_card' => true, 'taxable' => false]);
+        $shirt = $this->product(['title' => 'Shirt']);
+        $this->flushHeaders();
+        $this->withoutMiddleware(ValidateCsrfToken::class);
+        $this->get(self::HOST.'/products/gift-card')->assertOk()->assertSee('name="gift[email]"', false);
+        $this->get(self::HOST.'/products/shirt')->assertOk()->assertDontSee('name="gift[email]"', false);
+
+        $cart = $this->post(self::HOST.'/cart/add', ['variant_id' => $variant, 'quantity' => 1, 'gift' => ['email' => 'Mia@Example.com', 'name' => 'Mia', 'message' => 'Happy birthday!']])
+            ->getCookie('lumee_cart', false)->getValue();
+        $this->post(self::HOST.'/cart/add', ['variant_id' => $shirt, 'quantity' => 1, 'gift' => ['email' => 'x@example.com']]);   // ignored: not a gift card
+        $this->withUnencryptedCookie('lumee_cart', $cart)->get(self::HOST.'/cart')->assertSee('Gift for Mia');
+        $this->post(self::HOST.'/cart/add', ['variant_id' => $variant, 'gift' => ['email' => 'not-an-email']])->assertSessionHasErrors('gift.email');
+
+        $rate = ShippingRate::withoutGlobalScope('store')->where('store_id', $this->a['store_id'])->where('price', 990)->first();
+        $this->withUnencryptedCookie('lumee_cart', $cart)->post(self::HOST.'/checkout', [
+            'email' => 'buyer@example.com', 'first_name' => 'Ada', 'last_name' => 'Lee', 'address1' => '1 St', 'city' => 'Austin',
+            'zip' => '78701', 'country' => 'US', 'shipping_rate_id' => $rate->id, 'payment_gateway' => 'test',
+        ])->assertRedirect();
+        $order = Order::withoutGlobalScope('store')->latest('id')->first();
+        $order->markPaid();
+
+        $card = GiftCard::withoutGlobalScope('store')->sole();
+        $this->assertSame(['mia@example.com', 'Mia', 'Happy birthday!'], [$card->recipient_email, $card->recipient_name, $card->message]);
+        Mail::assertSent(GiftCardMail::class, fn ($m) => $m->hasTo('mia@example.com') && ! $m->hasTo('buyer@example.com'));
+        $this->assertNull(\App\Models\OrderItem::withoutGlobalScope('store')->where('title', 'Shirt')->value('gift'));
+    }
+
     public function test_server_side_purchase_events(): void
     {
         Http::fake([

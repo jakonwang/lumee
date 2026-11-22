@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Discount extends Model
 {
-    use BelongsToStore;
+    use BelongsToStore, \App\Markets\InMarketCurrency;
 
     public const TYPES = ['percentage' => '百分比折扣', 'fixed' => '固定金额', 'free_shipping' => '免运费'];
 
@@ -29,6 +29,17 @@ class Discount extends Model
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
         ];
+    }
+
+    /** Fixed amounts and the minimum spend are entered in the store currency: in the market currency inside a market. */
+    public function getAttribute($key)
+    {
+        return $this->inMarketCurrency($key, parent::getAttribute($key));
+    }
+
+    protected function marketMoneyAttributes(): array
+    {
+        return ($this->attributes['type'] ?? null) === 'fixed' ? ['value', 'min_subtotal'] : ['min_subtotal'];
     }
 
     public static function normalizeCode(string $code): string

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { listCollections } from '@/api/collections'
-import { NInput, NSelect, NSlider, NInputNumber, NSwitch, NColorPicker, NButton, NSpin, useMessage } from 'naive-ui'
+import { NInput, NSelect, NSlider, NInputNumber, NSwitch, NColorPicker, NButton, NSpin, NDatePicker, useMessage } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
 import type { Field } from '@/api/theme'
 
@@ -20,6 +20,44 @@ onMounted(async () => {
   if (props.field.type === 'collection') {
     collectionOptions.value = (await listCollections()).map((c) => ({ value: c.id, label: c.title }))
   }
+})
+
+// "product" fields: search the store's products by title
+const productOptions = ref<{ value: number; label: string }[]>([])
+const productLoading = ref(false)
+const productId = computed({
+  get: () => (typeof value.value === 'number' ? value.value : null),
+  set: (v: number | null) => { value.value = v },
+})
+async function searchProducts(q: string) {
+  productLoading.value = true
+  try {
+    const rows = (await http.get('/products', { params: { q: q || undefined, per_page: 20 } })).data.data as { id: number; title: string }[]
+    const keep = productOptions.value.filter((o) => o.value === productId.value)
+    productOptions.value = [...keep, ...rows.filter((r) => r.id !== productId.value).map((r) => ({ value: r.id, label: r.title }))]
+  } finally {
+    productLoading.value = false
+  }
+}
+onMounted(async () => {
+  if (props.field.type !== 'product') return
+  if (productId.value) {
+    try {
+      const p = (await http.get(`/products/${productId.value}`)).data.data as { id: number; title: string }
+      productOptions.value = [{ value: p.id, label: p.title }]
+    } catch { /* deleted product: shown as empty */ }
+  }
+  await searchProducts('')
+})
+// "datetime" fields: "2026-11-28T23:59" (store time zone) ⇄ the date picker's timestamp
+const dateTs = computed({
+  get: () => (typeof value.value === 'string' && value.value ? new Date(value.value).getTime() : null),
+  set: (ts: number | null) => {
+    if (!ts) { value.value = null; return }
+    const d = new Date(ts)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    value.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  },
 })
 
 const selectOptions = computed(() =>
@@ -69,6 +107,11 @@ async function onFile(e: Event) {
     <NSelect v-else-if="field.type === 'collection'" v-model:value="collectionId" :options="collectionOptions"
       clearable filterable :placeholder="t('不选')" />
     <p v-if="field.type === 'collection' && !collectionOptions.length" class="hint-empty">{{ t('还没有分类，先在「商品 → 商品分类」中创建') }}</p>
+
+    <NSelect v-else-if="field.type === 'product'" v-model:value="productId" :options="productOptions" :loading="productLoading"
+      clearable filterable remote :placeholder="t('搜索商品')" @search="searchProducts" />
+
+    <NDatePicker v-else-if="field.type === 'datetime'" v-model:value="dateTs" type="datetime" clearable format="yyyy-MM-dd HH:mm" style="width: 100%" />
 
     <div v-else-if="field.type === 'range'" class="range">
       <NSlider v-model:value="num" :min="field.min" :max="field.max" :step="field.step ?? 1" style="flex: 1" />

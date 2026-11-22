@@ -15,7 +15,10 @@ class Page extends Model
 
     public const TRANSLATABLE = ['title', 'body', 'seo'];
 
-    protected $fillable = ['store_id', 'title', 'handle', 'body', 'seo', 'published'];
+    protected $fillable = ['store_id', 'title', 'handle', 'body', 'layout', 'seo', 'published'];
+
+    /** text = Markdown body; blocks = a campaign landing page built in the theme editor (theme config "pages"). */
+    public const LAYOUTS = ['text', 'blocks'];
 
     protected function casts(): array
     {

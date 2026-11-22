@@ -112,7 +112,7 @@
                         <h2 style="margin-top:0">{{ __('Contact') }}</h2>
                         {{ $order->email }}
                         <h2>{{ __('Payment') }}</h2>
-                        {{ ['stripe' => __('Credit / debit card'), 'paypal' => 'PayPal', 'airwallex' => __('Card & local payment methods'), 'razorpay' => __('UPI, cards & netbanking (Razorpay)'), 'manual' => \App\Payments\PaymentSettings::for($store)->manualLabel(), 'test' => __('Test payment'), 'gift_card' => __('Gift card')][$order->payment_gateway] ?? $order->payment_gateway }}
+                        {{ ['stripe' => __('Credit / debit card'), 'paypal' => 'PayPal', 'airwallex' => __('Card & local payment methods'), 'razorpay' => __('UPI, cards & netbanking (Razorpay)'), 'cod' => __('Cash on delivery'), 'manual' => \App\Payments\PaymentSettings::for($store)->manualLabel(), 'test' => __('Test payment'), 'gift_card' => __('Gift card')][$order->payment_gateway] ?? $order->payment_gateway }}
                     </div>
                     <div>
                         <h2 style="margin-top:0">{{ __('Shipping address') }}</h2>
@@ -217,6 +217,12 @@
                 <div class="row"><span>{{ __('Shipping') }}</span><span class="money">{{ $order->shipping_total === 0 ? __('Free') : $m($order->shipping_total) }}</span></div>
                 @if ($order->tax_total > 0 && ! $order->taxes_included)
                     <div class="row"><span>{{ ($order->tax_lines[0]['name'] ?? __('Tax')).' '.($order->tax_lines[0]['rate'] ?? '').'%' }}</span><span class="money">{{ $m($order->tax_total) }}</span></div>
+                @endif
+                @if ($order->payment_fee > 0)
+                    <div class="row"><span>{{ __('Cash on delivery fee') }}</span><span class="money">{{ $m($order->payment_fee) }}</span></div>
+                @endif
+                @if ($order->duty_total > 0)
+                    <div class="row"><span>{{ __('Import duties') }}</span><span class="money">{{ $m($order->duty_total) }}</span></div>
                 @endif
                 @if ($order->gift_card_total > 0)
                     <div class="row discount"><span>{{ __('Gift card') }}</span><span class="money">−{{ $m($order->gift_card_total) }}</span></div>

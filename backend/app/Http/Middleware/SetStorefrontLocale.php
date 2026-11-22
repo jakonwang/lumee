@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\I18n\Localization;
+use App\Markets\MarketContext;
 use App\Tenancy\CurrentStore;
 use Closure;
 use Illuminate\Http\Request;
@@ -10,7 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Storefront language from the URL: "/fr/…" = French (if the store publishes it), no prefix =
- * the store's default language. Unknown or unpublished prefixes 404; "/en/…" for an English
+ * the store's default language; "/es-mx/…" = the Mexico market in Spanish. Unknown or unpublished prefixes 404; "/en/…" for an English
  * store redirects to the canonical unprefixed URL. Also rewrites internal links in the HTML.
  */
 class SetStorefrontLocale
@@ -23,7 +24,9 @@ class SetStorefrontLocale
         $current = app(CurrentStore::class);
         $route = $request->route();
         $prefix = $route?->parameter('locale');
+        $site = $route?->parameter('site');
         $route?->forgetParameter('locale');   // controllers receive their own params positionally
+        $route?->forgetParameter('site');
 
         if (! $current->check()) {
             return $next($request);
@@ -31,6 +34,17 @@ class SetStorefrontLocale
         $store = $current->getOrFail();
         $l10n = app(Localization::class);
         $default = Localization::storeDefault($store);
+
+        // "/es-mx/…": a market (country site) in one of its languages
+        if ($site !== null) {
+            [$lang, $handle] = explode('-', $site, 2);
+            $market = MarketContext::live($store)->firstWhere('handle', $handle);
+            abort_unless($market && in_array($lang, $market->languages(), true), 404);
+            app(MarketContext::class)->set($market);
+            $l10n->begin($store, $lang, $market);
+
+            return $this->localize($next($request), $l10n->prefix());
+        }
 
         if ($prefix !== null) {
             if ($prefix === $default) {

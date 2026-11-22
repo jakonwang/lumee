@@ -98,6 +98,15 @@
                             <input class="field {{ $invalid('zip') }}" name="zip" value="{{ $pre('zip') }}" placeholder="{{ __('ZIP / Postal code') }}" aria-label="{{ __('ZIP / Postal code') }}" autocomplete="postal-code" required>
                         </div>
                         <input class="field" name="phone" value="{{ $pre('phone') }}" placeholder="{{ __('Phone (optional, for delivery updates)') }}" aria-label="{{ __('Phone') }}" autocomplete="tel">
+                        {{-- Customs in some countries need the buyer's tax ID (Brazil: CPF / CNPJ) --}}
+                        @php
+                            $taxIdLabel = $taxIdLabels[old('country', $country)] ?? null;
+                        @endphp
+                        <div id="tax-id-wrap" @if (! $taxIdLabel) hidden @endif>
+                            <input class="field {{ $invalid('tax_id') }}" name="tax_id" value="{{ $pre('tax_id') }}" placeholder="{{ $taxIdLabel }}" aria-label="{{ $taxIdLabel ?? __('Tax ID') }}" @if ($taxIdLabel) required @endif>
+                            <div class="hint" style="font-size:12px;color:var(--ink-muted);margin-top:4px">{{ __('Required by customs in this country.') }}</div>
+                            @error('tax_id')<div class="error">{{ $message }}</div>@enderror
+                        </div>
                     </div>
 
                     <h2>{{ __('Shipping method') }}</h2>
@@ -132,12 +141,18 @@
                                                 @break
                                             @case('test') {{ __('Marks the order as paid instantly. Development only.') }} @break
                                             @case('terms') {{ __('Your order is placed now and invoiced to :company. Pay within the agreed terms.', ['company' => $company?->name ?? '']) }} @break
+                                            @case('cod')
+                                                {{ __('Pay the courier in cash when your order arrives.') }}
+                                                @if ($cod['fee'] > 0) {{ __('A :fee cash-on-delivery fee applies.', ['fee' => $m($cod['fee'])]) }} @endif
+                                                @if ($cod['max'] > 0) {{ __('For orders up to :amount.', ['amount' => $m($cod['max'])]) }} @endif
+                                                @break
                                         @endswitch
                                     </span>
                                 </span>
                             </label>
                         @endforeach
                     </div>
+                    @error('payment_gateway')<div class="error">{{ $message }}</div>@enderror
 
                     @if ($company ?? null)
                         <div class="stack" style="margin-top:16px;">
@@ -187,7 +202,12 @@
                 <div class="row" id="tax-row" @if (! $taxAmount || $tax['included']) hidden @endif>
                     <span id="tax-label">{{ $taxLabel }}</span><span class="money" id="tax-amount">{{ $m($taxAmount) }}</span>
                 </div>
-                @php($due = $subtotal - $off + $shipping + ($tax['included'] ? 0 : $taxAmount))
+                @if ($duties['amount'] > 0)
+                    <div class="row"><span>{{ __('Import duties') }}</span><span class="money">{{ $m($duties['amount']) }}</span></div>
+                @endif
+                @php($codFee = old('payment_gateway', $gateways->keys()->first()) === 'cod' ? (int) ($cod['fee'] ?? 0) : 0)
+                <div class="row" id="cod-fee-row" @if (! $codFee) hidden @endif><span>{{ __('Cash on delivery fee') }}</span><span class="money">{{ $m((int) ($cod['fee'] ?? 0)) }}</span></div>
+                @php($due = $subtotal - $off + $shipping + ($tax['included'] ? 0 : $taxAmount) + $duties['amount'] + $codFee)
                 @if ($giftCard ?? null)
                     <div class="row discount"><span>{{ __('Gift card') }} <span class="code-tag">•••• {{ $giftCard->last4 }}</span></span>
                         <span class="money" id="gift-card-amount">−{{ $m(min($giftCard->balance, $due)) }}</span></div>
@@ -196,6 +216,11 @@
                 <div class="row" id="tax-included" style="font-size:13px;color:var(--ink-muted);margin-top:-4px;" @if (! $taxAmount || ! $tax['included']) hidden @endif>
                     <span>{{ __('Including :tax', ['tax' => '']) }}<span id="tax-included-label">{{ $taxLabel }}</span></span><span class="money" id="tax-included-amount">{{ $m($taxAmount) }}</span>
                 </div>
+                @if ($duties['mode'] === 'included')
+                    <div class="row" style="font-size:13px;color:var(--ink-muted)"><span>{{ __('Import duties are included — nothing more to pay on delivery.') }}</span></div>
+                @elseif ($duties['mode'] === 'on_delivery')
+                    <div class="row" style="font-size:13px;color:var(--ink-muted)"><span>{{ __('Import duties and taxes may be collected by the carrier on delivery.') }}</span></div>
+                @endif
             </div>
         </aside>
     </div>
@@ -206,7 +231,10 @@
             const subtotal = {{ $subtotal - $off }};   // after discount
             const freeShip = {{ $freeShip ? 'true' : 'false' }};
             const giftBalance = {{ ($giftCard ?? null) ? (int) $giftCard->balance : 0 }};
-            const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: @json($store->currency) });
+            const duty = {{ (int) $duties['amount'] }};   // import duties on the goods (don't depend on shipping)
+            const codFee = {{ (int) ($cod['fee'] ?? 0) }};   // added when paying cash on delivery
+            const taxIdLabels = @json($taxIdLabels);
+            const fmt = new Intl.NumberFormat(@json(\App\Support\Money::locale() ?? 'en-US'), { style: 'currency', currency: @json($store->currency) });   // same as Money::display
             const box = document.getElementById('shipping-options');
             let tax = @json($tax);
             const $id = (id) => document.getElementById(id);
@@ -225,12 +253,15 @@
                 $id('tax-included').hidden = !t || !tax.included;
                 $id('tax-label').textContent = $id('tax-included-label').textContent = label;
                 $id('tax-amount').textContent = $id('tax-included-amount').textContent = fmt.format(t / 100);
-                const due = subtotal + price + (tax && !tax.included ? t : 0);
+                const cod = (document.querySelector('input[name="payment_gateway"]:checked') || {}).value === 'cod';
+                if ($id('cod-fee-row')) $id('cod-fee-row').hidden = !cod || !codFee;
+                const due = subtotal + price + (tax && !tax.included ? t : 0) + duty + (cod ? codFee : 0);
                 const gift = Math.min(giftBalance, due);
                 if ($id('gift-card-amount')) $id('gift-card-amount').textContent = '−' + fmt.format(gift / 100);
                 $id('total-amount').textContent = fmt.format((due - gift) / 100);
             }
             box.addEventListener('change', updateTotals);
+            document.querySelectorAll('input[name="payment_gateway"]').forEach(function (el) { el.addEventListener('change', updateTotals); });
 
             // Each country can have its own shipping zone → reload the rates when it changes
             const esc = function (s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
@@ -258,6 +289,16 @@
             }
             // Shipping zones and tax rates depend on the country (and state/province for tax)
             countryEl.addEventListener('change', refresh);
+            // Tax ID only for the countries whose customs need it
+            countryEl.addEventListener('change', function () {
+                const wrap = $id('tax-id-wrap');
+                const input = wrap.querySelector('input');
+                const label = taxIdLabels[countryEl.value];
+                wrap.hidden = !label;
+                input.required = !!label;
+                input.placeholder = label || '';
+                input.setAttribute('aria-label', label || '');
+            });
             if (provinceEl) provinceEl.addEventListener('change', refresh);
             if (zipEl) zipEl.addEventListener('change', refresh);   // address-level US sales tax
             document.getElementById('checkout').addEventListener('submit', function (e) {

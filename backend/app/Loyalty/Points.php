@@ -33,7 +33,10 @@ class Points
     /** Credit (minor units) that a number of points buys. */
     public static function value(Store $store, int $points): int
     {
-        return intdiv($points * 100, self::settings($store)['redeem_points']);
+        $credit = intdiv($points * 100, self::settings($store)['redeem_points']);   // in the store currency
+        $markets = app(\App\Markets\MarketContext::class);
+
+        return $markets->activeFor((int) $store->id) ? (int) $markets->money($credit) : $credit;
     }
 
     /** Award points for a paid order (once per order). */
@@ -44,7 +47,7 @@ class Points
         if (! $s['enabled'] || ! $order->customer_id || $order->total <= 0) {
             return 0;
         }
-        $points = (int) floor($order->total / 100 * $s['earn_rate']);
+        $points = (int) floor($order->inStoreCurrency($order->total) / 100 * $s['earn_rate']);   // earn rate is per store-currency unit
         if ($points <= 0 || PointTransaction::withoutGlobalScope('store')->where('order_id', $order->id)->where('kind', 'earned')->exists()) {
             return 0;
         }

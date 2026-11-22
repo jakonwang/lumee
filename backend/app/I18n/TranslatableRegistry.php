@@ -173,12 +173,25 @@ class TranslatableRegistry
                 }
             }
         }
-        foreach ($ctx->config['sections'] as $n => $s) {
-            $def = $schema['sections'][$s['type']] ?? null;
-            foreach ($def['fields'] ?? [] as $key => $f) {
-                if (in_array($f['type'], ['text', 'textarea'], true)) {
-                    $fields[] = ['key' => "sections.{$s['id']}.{$key}", 'label' => __('首页 · ').($n + 1).'. '.$def['label'].' · '.$f['label'],
-                        'source' => (string) ($s['settings'][$key] ?? ''), 'multiline' => $f['type'] === 'textarea'];
+        // Blocks of the home page, the product / collection / cart templates and campaign pages (ids are unique)
+        $lists = [__('首页') => $ctx->config['sections']];
+        foreach ((array) ($ctx->config['templates'] ?? []) as $tpl => $list) {
+            $lists[__($schema['templates'][$tpl]['label'] ?? $tpl)] = (array) $list;
+        }
+        $titles = \App\Models\Page::where('layout', 'blocks')->pluck('title', 'id');
+        foreach ((array) ($ctx->config['pages'] ?? []) as $pageId => $list) {
+            if (isset($titles[$pageId])) {
+                $lists[__('活动页 · :title', ['title' => $titles[$pageId]])] = (array) $list;
+            }
+        }
+        foreach ($lists as $where => $list) {
+            foreach (array_values($list) as $n => $s) {
+                $def = $schema['sections'][$s['type']] ?? null;
+                foreach ($def['fields'] ?? [] as $key => $f) {
+                    if (in_array($f['type'], ['text', 'textarea'], true)) {
+                        $fields[] = ['key' => "sections.{$s['id']}.{$key}", 'label' => $where.' · '.($n + 1).'. '.$def['label'].' · '.$f['label'],
+                            'source' => (string) ($s['settings'][$key] ?? ''), 'multiline' => $f['type'] === 'textarea'];
+                    }
                 }
             }
         }

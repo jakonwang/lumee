@@ -15,7 +15,9 @@ final class Countries
             'PT' => 'Portugal', 'PL' => 'Poland', 'JP' => 'Japan', 'KR' => 'South Korea', 'SG' => 'Singapore',
             'HK' => 'Hong Kong', 'TW' => 'Taiwan', 'MY' => 'Malaysia', 'TH' => 'Thailand', 'PH' => 'Philippines',
             'AE' => 'United Arab Emirates', 'SA' => 'Saudi Arabia', 'IL' => 'Israel', 'MX' => 'Mexico',
-            'BR' => 'Brazil', 'CN' => 'China',
+            'BR' => 'Brazil', 'CN' => 'China', 'ID' => 'Indonesia', 'VN' => 'Vietnam', 'IN' => 'India',
+            'AR' => 'Argentina', 'CL' => 'Chile', 'CO' => 'Colombia', 'PE' => 'Peru',
+            'GR' => 'Greece', 'CZ' => 'Czechia', 'HU' => 'Hungary', 'RO' => 'Romania', 'LU' => 'Luxembourg',
         ];
     }
 }

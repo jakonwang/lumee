@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ \App\I18n\Localization::dir() }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,7 +10,8 @@
         $seoPath = '/'.ltrim(preg_replace('#^'.preg_quote(ltrim($l10n->prefix(), '/'), '#').'(/|$)#', '', request()->path() === '/' ? '' : request()->path()), '/');
         $seoQuery = (int) request()->query('page') > 1 ? '?page='.(int) request()->query('page') : '';
         $seoCanonical = $store->storefrontUrl().$l10n->url($seoPath).$seoQuery;
-        $seoLanguages = \App\I18n\Localization::enabled($store);
+        $seoLanguages = \App\Markets\Storefront::languages($store);   // this market's languages (or the store's)
+        $seoAlternates = \App\Markets\Storefront::alternates($store, $seoPath);
         $seoAbs = fn ($u) => $u && str_starts_with($u, '/') && ! str_starts_with($u, '//') ? $store->storefrontUrl().$u : $u;
         $seoImage = $seoAbs(trim($__env->yieldContent('og_image')));
     @endphp
@@ -18,13 +19,10 @@
     <meta name="description" content="@yield('description', $store->name)">
     @if ($theme->preview || $__env->hasSection('noindex'))<meta name="robots" content="noindex">@endif
     <link rel="canonical" href="{{ $seoCanonical }}">
-    @if (count($seoLanguages) > 1)
-        {{-- Same page in every published language (search engines show shoppers the right one) --}}
-        @foreach ($seoLanguages as $code)
-            <link rel="alternate" hreflang="{{ $code }}" href="{{ $store->storefrontUrl().$l10n->url($seoPath, $code).$seoQuery }}">
-        @endforeach
-        <link rel="alternate" hreflang="x-default" href="{{ $store->storefrontUrl().$seoPath.$seoQuery }}">
-    @endif
+    {{-- Same page in every published language and every market (search engines show shoppers the right one) --}}
+    @foreach ($seoAlternates as $alt)
+        <link rel="alternate" hreflang="{{ $alt['hreflang'] }}" href="{{ $alt['href'].$seoQuery }}">
+    @endforeach
     <meta property="og:site_name" content="{{ $store->name }}">
     <meta property="og:type" content="@yield('og_type', 'website')">
     <meta property="og:url" content="{{ $seoCanonical }}">
@@ -41,6 +39,18 @@
     <style>
         *, *::before, *::after { box-sizing: border-box; }
         body { margin: 0; background: var(--ivory); color: var(--ink); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+        /* Blocks (any page): spacing and headings */
+        .section { padding-block: 72px; }
+        .section-head { text-align: center; margin-bottom: 40px; }
+        .section-head h2 { font-size: clamp(28px, 4vw, 38px); margin: 8px 0 0; }
+        .prose { color: var(--ink-muted); line-height: 1.8; white-space: pre-line; }
+        @media (max-width: 720px) { .section { padding-block: 48px; } }
+        /* Blocks shown only on computers / only on phones (block setting "visibility") */
+        .blk { display: contents; }
+        @media (max-width: 720px) { .blk.vis-desktop { display: none; } }
+        @media (min-width: 721px) { .blk.vis-mobile { display: none; } }
+        /* Right-to-left pages: merchant text in another script (e.g. English perks on an Arabic site) keeps its own direction */
+        [dir="rtl"] .perks > *, [dir="rtl"] .announcement, [dir="rtl"] .desc { unicode-bidi: plaintext; }
         a { color: inherit; text-decoration: none; }
         img { max-width: 100%; }
         .wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
@@ -88,15 +98,15 @@
         .has-sub:hover .sub, .has-sub:focus-within .sub { display: flex; }
         .has-sub .sub a { padding: 8px 18px; }
         .has-sub .sub a:hover { background: var(--rose-gold-50); }
-        .menu-btn { display: none; background: none; border: none; padding: 6px; margin-left: -6px; color: var(--ink); cursor: pointer; }
+        .menu-btn { display: none; background: none; border: none; padding: 6px; margin-inline-start: -6px; color: var(--ink); cursor: pointer; }
         .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 40; }
-        .drawer { position: fixed; top: 0; left: 0; bottom: 0; width: min(320px, 85vw); background: var(--surface); z-index: 41; padding: 56px 24px 24px; overflow-y: auto; box-shadow: 0 0 40px rgba(0,0,0,.15); }
+        .drawer { position: fixed; top: 0; inset-inline-start: 0; bottom: 0; width: min(320px, 85vw); background: var(--surface); z-index: 41; padding: 56px 24px 24px; overflow-y: auto; box-shadow: 0 0 40px rgba(0,0,0,.15); }
         .drawer[hidden], .drawer-backdrop[hidden] { display: none; }
-        .drawer-close { position: absolute; top: 12px; right: 14px; font-size: 28px; line-height: 1; background: none; border: none; color: var(--ink); cursor: pointer; padding: 4px 8px; }
+        .drawer-close { position: absolute; top: 12px; inset-inline-end: 14px; font-size: 28px; line-height: 1; background: none; border: none; color: var(--ink); cursor: pointer; padding: 4px 8px; }
         .drawer ul { list-style: none; margin: 0; padding: 0; }
         .drawer > ul > li { border-bottom: 1px solid var(--border); padding: 14px 0; }
         .drawer > ul > li > a { font-family: var(--font-display); font-size: 22px; }
-        .drawer li ul { margin-top: 8px; padding-left: 14px; }
+        .drawer li ul { margin-top: 8px; padding-inline-start: 14px; }
         .drawer li ul a { display: block; padding: 6px 0; color: var(--ink-muted); }
         .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 28px; margin-bottom: 28px; color: var(--ink); }
         .footer-links a:hover { color: var(--rose-gold-500); }
@@ -110,6 +120,8 @@
     @stack('head')
     {{-- Child themes (e.g. Fresh) restyle here: printed after page styles so they win --}}
     @stack('theme-overrides')
+    {{-- Theme settings › style (corners, buttons, cards, spacing): after the theme's own styles --}}
+    <style>{!! $theme->styleCss() !!}</style>
     @include('storefront.tracking')
 </head>
 <body>
@@ -245,6 +257,18 @@
                     @endforeach
                 </nav>
             @endif
+            @php($regions = \App\Markets\Storefront::regions($store, $seoPath))
+            @if ($regions)
+                {{-- Country/region: each market has its own prices and currency. Absolute URLs (not re-prefixed). --}}
+                <div class="currency-form region-form">
+                    <label for="region-select">{{ __('Country/region') }}</label>
+                    <select id="region-select" onchange="location.href = this.value">
+                        @foreach ($regions as $r)
+                            <option value="{{ $r['href'] }}" @selected($r['current'])>{{ $r['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             @php($offered = \App\Currency\CurrencySettings::for($store)->offered())
             @if (count($offered) > 1)
                 <form method="post" action="/currency" class="currency-form">
@@ -267,6 +291,7 @@
         @include($theme->view('partials.preview'))
     @endif
     @include('storefront.popup')
+    @include('storefront.market-suggest', ['suggestion' => $theme->preview ? null : \App\Markets\Storefront::suggestion($store, $seoPath)])
     <style>
         .wish-link { position: relative; }
         .wish-btn { flex: none; width: 48px; border: 1px solid var(--border); border-radius: var(--radius-btn, 999px); background: transparent; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
@@ -297,5 +322,7 @@
             return { read, write, paint };
         })();
     </script>
+    {{-- Block scripts (slideshow, countdowns, tabs…), after the page so they find their elements --}}
+    @stack('scripts')
 </body>
 </html>

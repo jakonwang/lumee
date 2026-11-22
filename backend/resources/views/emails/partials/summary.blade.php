@@ -34,6 +34,14 @@
         <tr><td style="padding:4px 0;color:{{ $c['muted'] }};">{{ ($order->tax_lines[0]['name'] ?? __('Tax')).' '.($order->tax_lines[0]['rate'] ?? '').'%' }}</td>
             <td align="right">{{ $money($order->tax_total) }}</td></tr>
     @endif
+    @if ($order->payment_fee > 0)
+        <tr><td style="padding:4px 0;color:{{ $c['muted'] }};">{{ __('Cash on delivery fee') }}</td>
+            <td align="right">{{ $money($order->payment_fee) }}</td></tr>
+    @endif
+    @if ($order->duty_total > 0)
+        <tr><td style="padding:4px 0;color:{{ $c['muted'] }};">{{ __('Import duties') }}</td>
+            <td align="right">{{ $money($order->duty_total) }}</td></tr>
+    @endif
     @if ($order->gift_card_total > 0)
         <tr><td style="padding:4px 0;color:{{ $c['muted'] }};">{{ __('Gift card') }}</td>
             <td align="right" style="color:{{ $c['primary'] }};">−{{ $money($order->gift_card_total) }}</td></tr>

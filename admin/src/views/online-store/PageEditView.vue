@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
-import { NCard, NInput, NButton, NSwitch, NIcon, NSkeleton, NTabs, NTab, useMessage, useDialog } from 'naive-ui'
+import { RouterLink, useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import { NCard, NInput, NButton, NSwitch, NIcon, NSkeleton, NTabs, NTab, NRadioGroup, NRadio, useMessage, useDialog } from 'naive-ui'
 import { ArrowBackOutline } from '@vicons/ionicons5'
 import { http, errorMessage } from '@/api/http'
 import { useAuth } from '@/stores/auth'
@@ -21,7 +21,9 @@ const dirty = ref(false)
 const tab = ref<'write' | 'preview'>('write')
 const previewHtml = ref('')
 const previewing = ref(false)
-const form = reactive({ title: '', handle: '', body: '', published: true })
+const form = reactive({ title: '', handle: '', body: '', layout: 'text' as 'text' | 'blocks', published: true })
+/** Live theme to open in the editor for a blocks page (from the API once saved as one) */
+const themeId = ref<number | null>(null)
 const seo = ref<{ title: string | null; description: string | null }>({ title: null, description: null })
 
 async function load() {
@@ -30,7 +32,8 @@ async function load() {
   try {
     const { data } = await http.get(`/pages/${id.value}`)
     const p = data.data
-    Object.assign(form, { title: p.title, handle: p.handle, body: p.body, published: p.published })
+    Object.assign(form, { title: p.title, handle: p.handle, body: p.body, layout: p.layout ?? 'text', published: p.published })
+    themeId.value = p.theme_id ?? null
     seo.value = { title: p.seo?.title ?? null, description: p.seo?.description ?? null }
   } finally {
     loading.value = false
@@ -115,6 +118,15 @@ onMounted(load)
           <NCard size="small">
             <div class="label">{{ t('标题') }}</div>
             <NInput v-model:value="form.title" :placeholder="t('例如：About Us、Shipping Policy')" maxlength="255" />
+            <template v-if="form.layout === 'blocks'">
+              <div class="label" style="margin-top: 16px">{{ t('内容') }}</div>
+              <p class="hint" style="margin-top: 0">{{ t('这是用模块装修的活动页：在店铺装修里添加轮播、限时抢购、优惠券、商品列表等模块，可以给每个市场单独修改。') }}</p>
+              <RouterLink v-if="themeId && !dirty" :to="{ name: 'theme-editor', params: { id: themeId }, query: { place: `page:${id}` } }">
+                <NButton type="primary">{{ t('去装修这个页面') }}</NButton>
+              </RouterLink>
+              <p v-else class="hint">{{ t('先保存，再去装修这个页面。') }}</p>
+            </template>
+            <template v-else>
             <div class="label" style="margin-top: 16px">{{ t('内容') }}</div>
             <NTabs v-model:value="tab" type="line" size="small">
               <NTab name="write">{{ t('编辑') }}</NTab>
@@ -126,12 +138,21 @@ onMounted(load)
             <p class="hint">
               {{ t('支持 Markdown：') }}<code>{{ t('## 小标题') }}</code>{{ t('、') }}<code>{{ t('**加粗**') }}</code>{{ t('、') }}<code>{{ t('- 列表') }}</code>{{ t('、') }}<code>{{ t('[文字](链接)') }}</code>{{ t('、') }}<code>{{ t('![图片](图片地址)') }}</code>{{ t('。为了安全，HTML 代码会被自动去除。') }}
             </p>
+            </template>
           </NCard>
 
           <SeoCard v-model="seo" :path="`/pages/${form.handle || '…'}`" :fallback-title="form.title" :fallback-description="form.body" />
         </div>
 
         <div class="side">
+          <NCard :title="t('页面类型')" size="small">
+            <NRadioGroup v-model:value="form.layout">
+              <div class="layout-opts">
+                <NRadio value="text">{{ t('文字页面（关于我们、政策等）') }}</NRadio>
+                <NRadio value="blocks">{{ t('活动页（用模块装修）') }}</NRadio>
+              </div>
+            </NRadioGroup>
+          </NCard>
           <NCard :title="t('显示')" size="small">
             <div class="row">
               <span>{{ form.published ? t('已发布') : t('未发布（买家看不到）') }}</span>
@@ -150,6 +171,7 @@ onMounted(load)
 </template>
 
 <style scoped>
+.layout-opts { display: grid; gap: 8px; }
 .editor { container-type: inline-size; }
 .back { margin-bottom: 12px; color: var(--ink-muted); }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }

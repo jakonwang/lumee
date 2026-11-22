@@ -22,42 +22,15 @@ class StorefrontController extends Controller
             return view('platform.welcome');
         }
 
-        $sections = collect(app(ThemeContext::class)->sections());
-        $variantCols = 'variants:id,product_id,price,compare_at_price,inventory_quantity,position';
-
-        // Featured products: newest products, or a chosen collection's products (per section)
-        $featured = $sections->where('type', 'featured_products');
-        $newestLimit = $featured->filter(fn ($s) => ! $s['settings']['collection'])->max(fn ($s) => $s['settings']['limit']) ?? 0;
-        $products = $newestLimit > 0
-            ? Product::active()->with($variantCols)->latest('id')->take($newestLimit)->get()
-            : collect();
-
-        $sectionProducts = [];
-        $sectionCollections = [];
-        foreach ($featured->filter(fn ($s) => $s['settings']['collection']) as $s) {
-            $collection = Collection::published()->find($s['settings']['collection']);
-            if ($collection) {
-                $sectionCollections[$s['id']] = $collection;
-                $sectionProducts[$s['id']] = $collection->sortedProducts()->with($variantCols)->take($s['settings']['limit'])->get();
-            }
-        }
-
-        // Collection list: the chosen collections in order, else the first 4 published ones
-        foreach ($sections->where('type', 'collection_list') as $s) {
-            $ids = array_values(array_filter([1, 2, 3, 4], fn ($i) => $s['settings']["collection_$i"]));
-            $ids = array_map(fn ($i) => $s['settings']["collection_$i"], $ids);
-            $sectionCollections[$s['id']] = $ids
-                ? Collection::published()->with('image')->whereIn('id', $ids)->get()->sortBy(fn ($c) => array_search($c->id, $ids))->values()
-                : Collection::published()->with('image')->orderBy('title')->take(4)->get();
-        }
-
-        return view($current->themeView('home'), compact('products', 'sectionProducts', 'sectionCollections'));
+        // Each block looks up its own products and collections (App\Themes\SectionData)
+        return view($current->themeView('home'));
     }
 
     public function product(CurrentStore $current, string $handle): View
     {
         $product = Product::active()->with('variants', 'images', 'options')->where('handle', $handle)->firstOrFail();
         app(\App\Analytics\Visits::class)->productView($product->id);
+        app(\App\Testing\Experiments::class)->present($product);   // A/B test of the main image or title
         if ($viewer = \App\Customers\CustomerSession::user()) {   // browse-abandonment emails
             \App\Models\Customer::withoutGlobalScope('store')->whereKey($viewer->id)->update(['last_viewed_product_id' => $product->id, 'last_viewed_at' => now()]);
         }
@@ -70,14 +43,14 @@ class StorefrontController extends Controller
             ? $product->reviews()->published()->selectRaw('rating, COUNT(*) as n')->groupBy('rating')->pluck('n', 'rating')->all()
             : [];
 
-        // "You may also like": same collections first, then newest; never the product itself
+        // "You may also like": same collections first, then newest; never the product itself (the block shows up to 12)
         $collectionIds = $product->collections()->pluck('collections.id');
         $cols = 'variants:id,product_id,price,compare_at_price,inventory_quantity,position';
         $related = $collectionIds->isEmpty() ? collect() : Product::active()->with($cols)->whereKeyNot($product->id)
-            ->whereHas('collections', fn ($q) => $q->whereIn('collections.id', $collectionIds))->latest('id')->limit(4)->get();
-        if ($related->count() < 4) {
+            ->whereHas('collections', fn ($q) => $q->whereIn('collections.id', $collectionIds))->latest('id')->limit(12)->get();
+        if ($related->count() < 12) {
             $related = $related->concat(Product::active()->with($cols)->whereKeyNot($product->id)
-                ->whereNotIn('id', $related->pluck('id'))->latest('id')->limit(4 - $related->count())->get());
+                ->whereNotIn('id', $related->pluck('id'))->latest('id')->limit(12 - $related->count())->get());
         }
 
         $together = app(\App\Catalog\Upsells::class)->forProduct($product);

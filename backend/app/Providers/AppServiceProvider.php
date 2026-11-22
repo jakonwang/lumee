@@ -25,11 +25,16 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(\App\Pricing\PriceLists::class);
         $this->app->scoped(\App\B2B\B2B::class);   // signed-in business buyer, company, terms   // wholesale prices for the signed-in customer   // automatic discounts (sale prices on the storefront)
         $this->app->scoped(\App\Currency\Presentment::class);
+        $this->app->scoped(\App\Markets\MarketContext::class);
+        $this->app->scoped(\App\Themes\SectionData::class);
+        $this->app->scoped(\App\Themes\DesignExperiments::class);   // design A/B tests running on this request's site   // data the storefront blocks look up (memoized per request)
+        $this->app->scoped(\App\Testing\Experiments::class);   // running A/B tests seen in this request   // the market (country site) of this storefront request
         $this->app->scoped(\App\I18n\Localization::class);     // shopper language + content translations   // the shopper's display currency
         $this->app->scoped(ThemeContext::class, fn ($app) => $app->make(ThemeService::class)->resolve(
             $app->make(CurrentStore::class)->getOrFail(),
             preview: (bool) $app['request']->attributes->get('theme_preview'),
             ref: $app['request']->attributes->get('theme_preview_theme'),
+            proposal: $app['request']->attributes->get('theme_proposal'),
         ));
     }
 

@@ -103,7 +103,9 @@ class GiftCards
                         'store_id' => $order->store_id, 'code' => $code, 'last4' => substr($code, -4),
                         'initial_value' => $item->price, 'balance' => $item->price, 'currency' => $order->currency,
                         'customer_id' => $order->customer_id, 'order_item_id' => $item->id, 'source' => 'purchase',
-                        'recipient_email' => $order->email, 'note' => $order->name(),
+                        // Bought for someone else: their email, name and the buyer's message (else the buyer's own)
+                        'recipient_email' => $item->gift['email'] ?? $order->email, 'recipient_name' => $item->gift['name'] ?? null,
+                        'message' => $item->gift['message'] ?? null, 'note' => $order->name(),
                     ]);
                     $this->log($card, $item->price, 'issued', $order->id);
 
@@ -115,7 +117,7 @@ class GiftCards
         foreach ($issued as $card) {
             try {
                 $locale = $order->locale ?: \App\I18n\Localization::storeDefault($store);
-                \Illuminate\Support\Facades\Mail::to($order->email)->locale($locale)->send(new \App\Notifications\GiftCardMail($card, $store));
+                \Illuminate\Support\Facades\Mail::to($card->recipient_email ?: $order->email)->locale($locale)->send(new \App\Notifications\GiftCardMail($card, $store));
                 $card->forceFill(['sent_at' => now()])->save();
             } catch (\Throwable $e) {
                 report($e);

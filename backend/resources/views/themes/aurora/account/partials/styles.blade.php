@@ -21,7 +21,7 @@
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 24px; margin-bottom: 20px; }
     .panel h2 { font-family: var(--font-display); font-size: 22px; margin: 0 0 16px; font-weight: 600; }
     .orders { width: 100%; border-collapse: collapse; font-size: 14px; }
-    .orders th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 0 8px 10px; }
+    .orders th { text-align: start; font-weight: 500; color: var(--ink-muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 0 8px 10px; }
     .orders td { padding: 14px 8px; border-top: 1px solid var(--border); vertical-align: middle; }
     .orders a { color: var(--rose-gold-700); text-decoration: underline; }
     .pill { display: inline-block; font-size: 12px; padding: 2px 10px; border-radius: 999px; background: var(--rose-gold-100); color: var(--rose-gold-700); white-space: nowrap; }

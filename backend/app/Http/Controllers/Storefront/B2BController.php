@@ -19,6 +19,61 @@ use Illuminate\Validation\Rule;
 /** Storefront B2B: wholesale application form, request a quote from the bag, view / accept a quote. */
 class B2BController extends Controller
 {
+    /** Business buyers: paste "SKU, quantity" lines to fill the bag at wholesale prices. */
+    public function quickOrderForm(CurrentStore $current): View|RedirectResponse
+    {
+        if (! app(B2B::class)->isBusiness()) {
+            return redirect('/account/login?return=/wholesale/order');
+        }
+        $lists = app(\App\Pricing\PriceLists::class);
+
+        return view($current->themeView('wholesale-order'), [
+            'wholesale' => $lists->active() ? ['name' => $lists->name(), 'minimum' => $lists->minimum()] : null,
+        ]);
+    }
+
+    public function quickOrder(Request $request, CartService $carts): RedirectResponse
+    {
+        if (! app(B2B::class)->isBusiness()) {
+            return redirect('/account/login?return=/wholesale/order');
+        }
+        $data = $request->validate(['lines' => ['required', 'string', 'max:20000']]);
+        $errors = [];
+        $added = 0;
+        foreach (array_slice(preg_split('/?
+/', $data['lines']), 0, 200) as $n => $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            // "SKU, 24" / "SKU 24" / "SKU<tab>24"
+            if (! preg_match('/^\s*([^,;	 ]+)[\s,;	]+(\d{1,6})\s*$/u', $line, $m)) {
+                $errors[] = __('Line :n: use “SKU, quantity”.', ['n' => $n + 1]);
+
+                continue;
+            }
+            $variant = \App\Models\ProductVariant::where('sku', $m[1])->first();   // this store's only
+            if (! $variant) {
+                $errors[] = __('Line :n: no product with SKU :sku.', ['n' => $n + 1, 'sku' => $m[1]]);
+
+                continue;
+            }
+            try {
+                $carts->add($variant->id, (int) $m[2]);
+                $added++;
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                $errors[] = $m[1].': '.collect($e->errors())->flatten()->first();
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException) {
+                $errors[] = __('Line :n: :sku is not available.', ['n' => $n + 1, 'sku' => $m[1]]);
+            }
+        }
+        if ($errors) {
+            return redirect('/wholesale/order')->withInput()->with('quick_order_errors', $errors)
+                ->with('status', $added ? __(':count lines added to your bag.', ['count' => $added]) : null);
+        }
+
+        return redirect('/cart')->with('status', __(':count lines added to your bag.', ['count' => $added]));
+    }
+
     public function applyForm(CurrentStore $current): View
     {
         abort_unless(B2B::settings($current->getOrFail())['applications'], 404);

@@ -10,15 +10,30 @@ use InvalidArgumentException;
 
 class ThemeService
 {
-    /** Valid collection ids for the sanitize() call in progress (null = don't check). */
+    /** Valid collection / product ids for the sanitize() call in progress (null = don't check). */
     private ?array $collectionIds = null;
+
+    private ?array $productIds = null;
+
+    /** Where a block may go when its schema doesn't say (the theme's own home blocks). */
+    public const DEFAULT_PLACEMENT = ['home', 'page'];
+
+    /** Shown on every block: show it everywhere, or only on computers / phones. */
+    public const VISIBILITY_FIELD = ['type' => 'select', 'label' => '显示在', 'options' => ['all' => '电脑和手机', 'desktop' => '只在电脑上', 'mobile' => '只在手机上'], 'default' => 'all'];
 
     public function schema(string $theme): array
     {
-        return config("themes.$theme") ?? throw new InvalidArgumentException("Unknown theme [$theme]");
+        $schema = config("themes.$theme") ?? throw new InvalidArgumentException("Unknown theme [$theme]");
+        foreach ($schema['sections'] as $type => $def) {
+            $schema['sections'][$type]['on'] = $def['on'] ?? self::DEFAULT_PLACEMENT;
+            $schema['sections'][$type]['fields'] = [...$def['fields'], 'visibility' => self::VISIBILITY_FIELD];
+        }
+        $schema['templates'] ??= [];
+
+        return $schema;
     }
 
-    /** Fresh config for a theme: every setting at its default plus the default home sections. */
+    /** Fresh config for a theme: every setting at its default, the default home sections and page templates. */
     public function defaults(string $theme): array
     {
         $schema = $this->schema($theme);
@@ -27,7 +42,27 @@ class ThemeService
             $sections[] = $this->newSection($theme, $s['type'], $s['type'].'-'.($i + 1));
         }
 
-        return ['settings' => $this->fieldDefaults($schema['settings']), 'sections' => $sections];
+        return ['settings' => $this->fieldDefaults($schema['settings']), 'sections' => $sections,
+            'templates' => $this->templateDefaults($theme), 'pages' => (object) []];
+    }
+
+    /** Default blocks of the product / collection / cart templates (ids prefixed with the template). */
+    public function templateDefaults(string $theme): array
+    {
+        $out = [];
+        foreach ($this->schema($theme)['templates'] as $key => $t) {
+            if ($key !== 'page') {
+                $out[$key] = array_map(fn ($type) => $this->newSection($theme, $type, "$key-$type"), $t['default']);
+            }
+        }
+
+        return $out;
+    }
+
+    /** Starting blocks of a new campaign landing page. */
+    public function pageDefaults(string $theme, int $pageId): array
+    {
+        return array_map(fn ($type) => $this->newSection($theme, $type, "p{$pageId}-$type"), $this->schema($theme)['templates']['page']['default'] ?? ['hero']);
     }
 
     public function newSection(string $theme, string $type, ?string $id = null): array
@@ -49,9 +84,10 @@ class ThemeService
     public function sanitize(string $theme, array $input, bool $checkMedia = true): array
     {
         $schema = $this->schema($theme);
-        // Referenced records must belong to the current store (both models are store-scoped)
+        // Referenced records must belong to the current store (all three models are store-scoped)
         $mediaIds = $checkMedia ? $this->existingMediaIds($input) : null;
         $this->collectionIds = $checkMedia ? \App\Models\Collection::pluck('id')->all() : null;
+        $this->productIds = $checkMedia ? $this->existingProductIds($input) : null;
 
         $settings = [];
         foreach ($schema['settings'] as $group => $def) {
@@ -60,13 +96,40 @@ class ThemeService
             }
         }
 
+        // Block ids are unique across the whole config (market overrides and translations key on them)
+        $usedIds = [];
+        $sections = $this->sanitizeList($schema, 'home', $input['sections'] ?? [], $mediaIds, $usedIds);
+
+        $templates = [];
+        foreach ($schema['templates'] as $key => $t) {
+            if ($key === 'page') {
+                continue;
+            }
+            $raw = $input['templates'][$key] ?? null;
+            $templates[$key] = is_array($raw) ? $this->sanitizeList($schema, $key, $raw, $mediaIds, $usedIds)
+                : array_map(fn ($type) => $this->newSection($theme, $type, $this->freeId("$key-$type", $usedIds)), $t['default']);
+        }
+
+        // Campaign landing pages: blocks per page id
+        $pages = [];
+        foreach ((array) ($input['pages'] ?? []) as $pageId => $raw) {
+            if (ctype_digit((string) $pageId) && is_array($raw) && count($pages) < 200) {
+                $pages[(string) $pageId] = $this->sanitizeList($schema, 'page', $raw, $mediaIds, $usedIds);
+            }
+        }
+
+        return ['settings' => $settings, 'sections' => $sections, 'templates' => $templates, 'pages' => (object) $pages];
+    }
+
+    /** One list of blocks for a place (home, page, product, collection, cart). */
+    private function sanitizeList(array $schema, string $place, array $input, ?array $mediaIds, array &$usedIds): array
+    {
         $sections = [];
         $perType = [];
-        $usedIds = [];
-        foreach (array_slice(array_values($input['sections'] ?? []), 0, $schema['max_sections']) as $raw) {
+        foreach (array_slice(array_values($input), 0, $schema['max_sections']) as $raw) {
             $type = is_array($raw) ? ($raw['type'] ?? null) : null;
             $def = is_string($type) ? ($schema['sections'][$type] ?? null) : null;
-            if (! $def) {
+            if (! $def || ! in_array($place, $def['on'], true)) {
                 continue;
             }
             $perType[$type] = ($perType[$type] ?? 0) + 1;
@@ -86,14 +149,39 @@ class ThemeService
             $sections[] = ['id' => $id, 'type' => $type, 'enabled' => (bool) ($raw['enabled'] ?? true), 'settings' => $values];
         }
 
-        return ['settings' => $settings, 'sections' => $sections];
+        // A template's own content (product info, the product grid, the bag) is always there and shown
+        $fixed = $schema['templates'][$place]['fixed'] ?? null;
+        if ($fixed) {
+            $at = array_search($fixed, array_column($sections, 'type'), true);
+            if ($at === false) {
+                $def = $schema['sections'][$fixed];
+                $id = $this->freeId("$place-$fixed", $usedIds);
+                array_unshift($sections, ['id' => $id, 'type' => $fixed, 'enabled' => true,
+                    'settings' => array_map(fn ($f) => $f['default'] ?? null, $def['fields'])]);
+            } else {
+                $sections[$at]['enabled'] = true;
+            }
+        }
+
+        return $sections;
+    }
+
+    private function freeId(string $id, array &$usedIds): string
+    {
+        $id = substr($id, 0, 33);
+        while (isset($usedIds[$id])) {
+            $id = substr($id, 0, 33).'-'.Str::lower(Str::random(4));
+        }
+        $usedIds[$id] = true;
+
+        return $id;
     }
 
     /**
      * The config to render for a store: the live theme's published config (or a theme's draft when
      * previewing), else template defaults. $ref = a template key or "r{id}" for one library theme.
      */
-    public function resolve(Store $store, bool $preview = false, ?string $ref = null): ThemeContext
+    public function resolve(Store $store, bool $preview = false, ?string $ref = null, ?array $proposal = null): ThemeContext
     {
         $row = $ref !== null ? $this->rowForRef($store, $ref) : null;
         if (! $row && ($ref === null || ! config("themes.$ref"))) {
@@ -105,12 +193,36 @@ class ThemeService
         $raw = $preview ? ($row?->draft ?? $row?->published) : $row?->published;
         $config = $raw ? $this->sanitize($theme, $raw, checkMedia: false) : $this->defaults($theme);
 
+        // Inside a market: its own design on top (draft while previewing)
+        $localized = [];
+        $market = app(\App\Markets\MarketContext::class)->activeFor($store->id) ? app(\App\Markets\MarketContext::class)->market() : null;
+        if ($proposal && $row && $proposal['row_id'] === $row->id && $proposal['market_id'] === $market?->id) {
+            // Previewing an AI proposal: its complete config (already including the market's changes)
+            $config = $this->sanitize($theme, $proposal['config'], checkMedia: false);
+            $localized = MarketThemes::localizedKeys($proposal['layer'] ?? null);
+        } elseif (! $market && ! $preview && $row && $row->theme === $theme && ($variant = app(DesignExperiments::class)->variantFor($row, null)) !== null) {
+            // A/B test of the main site's design: visitors in arm B see the tested config
+            $config = $this->sanitize($theme, $variant, checkMedia: false);
+        } elseif ($market && $row && $row->theme === $theme) {
+            $mt = app(MarketThemes::class);
+            $m = $mt->row($row, $market);
+            $layer = $m ? ($preview ? ($m->draft ?? $m->published) : $m->published) : null;
+            // A/B test of this market's design: visitors in arm B see the tested layer
+            if (! $preview && ($variant = app(DesignExperiments::class)->variantFor($row, $market)) !== null) {
+                $layer = $variant;
+            }
+            if ($layer) {
+                $config = $this->sanitize($theme, $mt->apply($config, $layer), checkMedia: false);
+                $localized = MarketThemes::localizedKeys($layer);
+            }
+        }
+
         $media = StoreMedia::withoutGlobalScope('store')
             ->where('store_id', $store->id)
             ->whereIn('id', $this->collectImageIds($config))
             ->get()->mapWithKeys(fn ($m) => [$m->id => $m->url()])->all();
 
-        return new ThemeContext($store, $config, $media, $preview, $theme);
+        return new ThemeContext($store, $config, $media, $preview, $theme, $localized);
     }
 
     public function activeTheme(Store $store): string
@@ -163,12 +275,13 @@ class ThemeService
     }
 
     /** Publish a theme's draft and make it the live theme. */
-    public function publish(Store $store, StoreTheme $row): void
+    public function publish(Store $store, StoreTheme $row, ?int $userId = null): void
     {
         $row->published = $row->draft ?? $this->defaults($row->theme);
         $row->draft ??= $row->published;
         $row->published_at = now();
         $row->save();
+        app(MarketThemes::class)->snapshot($row, null, $row->published, 'publish', $userId);
 
         $store->forceFill(['theme' => $row->theme, 'theme_id' => $row->id])->save();
     }
@@ -291,9 +404,34 @@ class ThemeService
                 $id = (int) $value;
 
                 return $this->collectionIds === null || in_array($id, $this->collectionIds, true) ? $id : null;
+
+            case 'product':
+                if (! is_numeric($value)) {
+                    return null;
+                }
+                $id = (int) $value;
+
+                return $this->productIds === null || in_array($id, $this->productIds, true) ? $id : null;
+
+            case 'datetime':
+                // "2026-11-28T23:59" (store time zone); anything else → not set
+                return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/', $value) && strtotime($value) !== false ? $value : null;
         }
 
         return $default;
+    }
+
+    /** Product ids referenced by "product" fields that belong to the current store. */
+    private function existingProductIds(array $input): array
+    {
+        $ids = [];
+        array_walk_recursive($input, function ($v, $k) use (&$ids) {
+            if (is_numeric($v) && is_string($k) && str_ends_with($k, '_product')) {
+                $ids[] = (int) $v;
+            }
+        });
+
+        return $ids ? \App\Models\Product::whereIn('id', array_unique($ids))->pluck('id')->all() : [];
     }
 
     /** Media ids referenced in raw input that actually belong to the current store. */
@@ -321,14 +459,28 @@ class ThemeService
                 }
             }
         }
-        foreach ($config['sections'] as $s) {
+        foreach (self::allSections($config) as $s) {
             foreach ($s['settings'] as $k => $v) {
-                if ($k === 'image' && is_int($v)) {
+                if (str_contains($k, 'image') && is_int($v)) {   // image, slide1_image, slide1_mobile_image…
                     $ids[] = $v;
                 }
             }
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /** Every block in a config: home, page templates and landing pages. */
+    public static function allSections(array $config): array
+    {
+        $all = $config['sections'] ?? [];
+        foreach ((array) ($config['templates'] ?? []) as $list) {
+            $all = [...$all, ...(array) $list];
+        }
+        foreach ((array) ($config['pages'] ?? []) as $list) {
+            $all = [...$all, ...(array) $list];
+        }
+
+        return $all;
     }
 }

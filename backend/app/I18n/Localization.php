@@ -23,6 +23,9 @@ class Localization
 
     private bool $translating = false;
 
+    /** Storefront request inside a market: URLs are prefixed "/{lang}-{market}" instead of "/{lang}". */
+    private ?\App\Models\Market $market = null;
+
     /** @var array<string, array<int, array<string, string>>> type => id => field => value */
     private array $cache = [];
 
@@ -30,6 +33,17 @@ class Localization
     public static function languages(): array
     {
         return config('lumee.languages');
+    }
+
+    /** Languages written right to left. */
+    public const RTL = ['ar', 'he', 'fa', 'ur'];
+
+    /** "rtl" or "ltr" for a language (default: the current one). */
+    public static function dir(?string $locale = null): string
+    {
+        $lang = strtolower(substr(str_replace('_', '-', $locale ?? app()->getLocale()), 0, 2));
+
+        return in_array($lang, self::RTL, true) ? 'rtl' : 'ltr';
     }
 
     public static function storeDefault(Store $store): string
@@ -45,8 +59,9 @@ class Localization
         return array_values(array_unique([self::storeDefault($store), ...$extra]));
     }
 
-    public function begin(Store $store, string $locale): void
+    public function begin(Store $store, string $locale, ?\App\Models\Market $market = null): void
     {
+        $this->market = $market;
         $this->default = self::storeDefault($store);
         $this->locale = $locale;
         $this->translating = $locale !== $this->default;
@@ -57,12 +72,12 @@ class Localization
     /** Run $fn as if the shopper used $locale (e.g. sending an email), then restore everything. */
     public function within(Store $store, string $locale, callable $fn): mixed
     {
-        $saved = [$this->locale, $this->default, $this->translating, $this->cache, App::getLocale()];
-        $this->begin($store, $locale);
+        $saved = [$this->locale, $this->default, $this->translating, $this->cache, App::getLocale(), $this->market];
+        $this->begin($store, $locale, $this->market);
         try {
             return $fn();
         } finally {
-            [$this->locale, $this->default, $this->translating, $this->cache, $appLocale] = $saved;
+            [$this->locale, $this->default, $this->translating, $this->cache, $appLocale, $this->market] = $saved;
             App::setLocale($appLocale);
         }
     }
@@ -77,10 +92,13 @@ class Localization
         return $this->locale === null || $this->locale === $this->default;
     }
 
-    /** "" for the default language, else "/fr". */
+    /** "" for the default language, else "/fr"; inside a market "/fr-eu" (every language has a prefix there). */
     public function prefix(?string $locale = null): string
     {
         $locale ??= $this->locale;
+        if ($this->market) {
+            return $this->market->prefix($locale ?: null);
+        }
 
         return ! $locale || $locale === $this->default ? '' : '/'.$locale;
     }

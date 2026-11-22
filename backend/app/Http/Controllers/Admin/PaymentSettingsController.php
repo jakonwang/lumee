@@ -70,7 +70,9 @@ class PaymentSettingsController extends Controller
             'currency' => $current->getOrFail()->currency,
             'razorpay_currency_ok' => $current->getOrFail()->currency === 'INR',
             'stripe_methods' => collect(PaymentSettings::STRIPE_METHODS)->map(fn ($m, $key) => [
-                'key' => $key, 'name' => $m[0], 'currencies' => $m[1], 'supported' => in_array($current->getOrFail()->currency, $m[1], true),
+                // Usable when the store currency or any market's currency takes it (OXXO in a Mexico market…)
+                'key' => $key, 'name' => $m[0], 'currencies' => $m[1],
+                'supported' => (bool) array_intersect([$current->getOrFail()->baseCurrency(), ...\App\Models\Market::pluck('currency')->all()], $m[1]),
             ])->values(),
             'stripe_connect' => app(StripeConnect::class)->summary($current->getOrFail()),
         ];

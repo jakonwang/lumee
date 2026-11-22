@@ -11,7 +11,7 @@ class PriceList extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['name', 'customer_tag', 'percent_off', 'min_subtotal', 'enabled'];
+    protected $fillable = ['name', 'customer_tag', 'percent_off', 'min_subtotal', 'enabled', 'market_id'];   // market_id null = every market (converted)
 
     protected function casts(): array
     {

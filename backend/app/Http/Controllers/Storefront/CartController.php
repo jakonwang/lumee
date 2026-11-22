@@ -37,7 +37,7 @@ class CartController extends Controller
             'cart' => $cart,
             'discounts' => $discounts,
             'nextTier' => $cart ? app(\App\Promotions\Promotions::class)->nextTier($cart->subtotal()) : null,
-            'freeShippingAt' => $freeShippingAt ? (int) $freeShippingAt : null,
+            'freeShippingAt' => $freeShippingAt ? app(\App\Markets\MarketContext::class)->money((int) $freeShippingAt) : null,
             'giftCard' => $cart?->giftCard(),
             'wholesale' => app(\App\Pricing\PriceLists::class)->active() ? ['name' => app(\App\Pricing\PriceLists::class)->name(), 'minimum' => app(\App\Pricing\PriceLists::class)->minimum()] : null,
             'loyalty' => (function () {
@@ -57,12 +57,16 @@ class CartController extends Controller
             'variant_id' => ['required', 'integer'],
             'quantity' => ['nullable', 'integer', 'min:1', 'max:10000'],
             'plan' => ['nullable', 'string', 'max:20'],
+            'gift.email' => ['nullable', 'email', 'max:255'],
+            'gift.name' => ['nullable', 'string', 'max:100'],
+            'gift.message' => ['nullable', 'string', 'max:500'],
         ]);
 
         $qty = (int) ($data['quantity'] ?? 1);
-        $cart = $this->carts()->add((int) $data['variant_id'], $qty, $data['plan'] ?? null);
+        $cart = $this->carts()->add((int) $data['variant_id'], $qty, $data['plan'] ?? null, $data['gift'] ?? null);
         $variant = $cart->items->firstWhere('variant_id', (int) $data['variant_id'])?->variant;
         app(\App\Analytics\Visits::class)->addToCart($variant?->product_id);
+        app(\App\Testing\Experiments::class)->cart($variant?->product_id);
 
         return redirect('/cart')->with('status', __('Added to your bag.'))->with('tracking_add', $variant ? [
             'id' => $variant->id, 'name' => $variant->product->title, 'price' => (int) $variant->price, 'quantity' => $qty,
@@ -75,7 +79,9 @@ class CartController extends Controller
         $data = $request->validate(['variant_ids' => ['required', 'array', 'min:1', 'max:4'], 'variant_ids.*' => ['integer']]);
         foreach (array_unique(array_map('intval', $data['variant_ids'])) as $id) {
             $this->carts()->add($id, 1);
-            app(\App\Analytics\Visits::class)->addToCart(\App\Models\ProductVariant::find($id)?->product_id);
+            $pid = \App\Models\ProductVariant::find($id)?->product_id;
+            app(\App\Analytics\Visits::class)->addToCart($pid);
+            app(\App\Testing\Experiments::class)->cart($pid);
         }
 
         return redirect('/cart')->with('status', __('Added to your bag.'));

@@ -125,7 +125,7 @@ class OrderEditor
             $tax = $o->company_id && \App\Models\Company::withoutGlobalScope('store')->find($o->company_id)?->tax_exempt
                 ? ['amount' => 0, 'included' => (bool) $o->taxes_included, 'lines' => []]
                 : app(TaxService::class)->calculate($store, TaxService::taxableAfterDiscount($subtotal, $taxable, $discount), (int) $o->shipping_total, $a['country'] ?? null, $a['province'] ?? null, $a);
-            $newTotal = max(0, $subtotal - $discount + (int) $o->shipping_total + ($tax['included'] ? 0 : $tax['amount']) - (int) $o->gift_card_total);
+            $newTotal = max(0, $subtotal - $discount + (int) $o->shipping_total + ($tax['included'] ? 0 : $tax['amount']) + (int) $o->duty_total + (int) $o->payment_fee - (int) $o->gift_card_total);   // duties and payment fees stay as charged
 
             $o->forceFill([
                 'subtotal' => $subtotal, 'discount_total' => $discount, 'tax_total' => $tax['amount'], 'taxes_included' => $tax['included'],

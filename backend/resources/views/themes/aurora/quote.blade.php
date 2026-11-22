@@ -13,7 +13,7 @@
     .qt-row + .qt-row { border-top: 1px solid var(--border); }
     .qt-muted { color: var(--ink-muted); font-size: 14px; }
     .qt-total { font-weight: 600; font-size: 17px; }
-    .qt-note { margin-top: 16px; padding: 12px 14px; border-left: 3px solid var(--rose-gold-500); background: var(--rose-gold-50); white-space: pre-line; font-size: 14px; }
+    .qt-note { margin-top: 16px; padding: 12px 14px; border-inline-start: 3px solid var(--rose-gold-500); background: var(--rose-gold-50); white-space: pre-line; font-size: 14px; }
     .qt-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 24px; }
     .qt-notice { margin: 16px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--rose-gold-50); border: 1px solid var(--border); font-size: 14px; }
 </style>

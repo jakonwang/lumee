@@ -52,6 +52,17 @@ $storefront = function () {
         Route::post('/subscriptions/{token}', [\App\Http\Controllers\Storefront\SubscriptionController::class, 'update'])->whereUuid('token')->middleware('throttle:20,1');
         $b2b = \App\Http\Controllers\Storefront\B2BController::class;
         Route::get('/wholesale', [$b2b, 'applyForm']);
+        Route::get('/wholesale/order', [$b2b, 'quickOrderForm']);
+        Route::post('/wholesale/order', [$b2b, 'quickOrder'])->middleware('throttle:cart');
+        $wc = \App\Http\Controllers\Storefront\WholesaleCatalogController::class;   // shareable catalogs + distributor feed
+        Route::get('/wholesale/catalog/{token}.json', [$wc, 'json'])->where('token', '[A-Za-z0-9]{40}')->middleware('throttle:60,1');
+        Route::get('/wholesale/catalog/{token}.csv', [$wc, 'csv'])->where('token', '[A-Za-z0-9]{40}')->middleware('throttle:60,1');
+        Route::get('/wholesale/catalog/{token}', [$wc, 'show'])->where('token', '[A-Za-z0-9]{40}');
+        Route::post('/wholesale/catalog/{token}/orders', [$wc, 'placeOrder'])->where('token', '[A-Za-z0-9]{40}')->middleware('throttle:30,1');   // distributor order API (order key)
+        Route::get('/wholesale/catalog/{token}/orders/{number}', [$wc, 'order'])->where('token', '[A-Za-z0-9]{40}')->whereNumber('number')->middleware('throttle:60,1');
+        Route::get('/supplier/{token}', [\App\Http\Controllers\Storefront\SupplierPortalController::class, 'show'])->where('token', '[A-Za-z0-9]{40}');
+        Route::post('/supplier/{token}/orders/{order}', [\App\Http\Controllers\Storefront\SupplierPortalController::class, 'update'])->where('token', '[A-Za-z0-9]{40}')->whereNumber('order')->middleware('throttle:30,1');
+        Route::post('/supplier/{token}/products', [\App\Http\Controllers\Storefront\SupplierPortalController::class, 'offer'])->where('token', '[A-Za-z0-9]{40}')->middleware('throttle:20,1');
         Route::post('/wholesale', [$b2b, 'apply'])->middleware('throttle:5,1');
         Route::post('/quotes', [$b2b, 'requestQuote'])->middleware('throttle:10,1');
         Route::get('/quotes/{token}', [$b2b, 'show'])->whereUuid('token');
@@ -114,6 +125,12 @@ Route::prefix('{locale}')
     ->where(['locale' => implode('|', array_keys(config('lumee.languages')))])
     ->middleware(['store.front', 'store.redirects', 'store.locale', 'store.open', 'store.analytics'])
     ->name('l.')
+    ->group($storefront);
+// Markets (country sites): "/es-mx/products/…" = the Mexico market in Spanish — see SetStorefrontLocale
+Route::prefix('{site}')
+    ->where(['site' => '(?:'.implode('|', array_keys(config('lumee.languages'))).')-[a-z]{2,12}'])
+    ->middleware(['store.front', 'store.redirects', 'store.locale', 'store.open', 'store.analytics'])
+    ->name('m.')
     ->group($storefront);
 
 // Payment provider webhooks (no CSRF, no store context — see controller)

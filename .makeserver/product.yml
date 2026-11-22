@@ -1,0 +1,61 @@
+# 项目档案：Moordesk「概览」页显示的内容。和代码一起提交，换电脑、交接都不会丢。
+# title 名称 · tagline 一句话介绍 · kind 类型 · stage 阶段 · entries 入口地址 · modules 功能模块（status：规划中 / 开发中 / 测试中 / 已上线 / 已下线）· stack 技术栈
+title: Lumée
+tagline: 跨境独立站 SaaS：卖家注册开店、上架商品、接 Stripe / PayPal 收款，卖向全球
+kind: 产品
+stage: 开发中（生产和预发布已部署）
+audience: 跨境卖家，首批切入轻奢 / 珠宝 / 女性饰品垂类
+about: |-
+  多租户建站 SaaS，对标 Shopify / 店匠。卖家注册 → 选模板 → 上架商品 → 绑定独立域名 → 接入收款 → 卖向全球。
+  每个店铺有独立的商城网站（平台二级域名或商家自己的域名，自动 HTTPS），商家在后台管理商品、订单、客户、营销和主题装修；平台方有运营后台管商家、套餐计费和审核。
+  差异化：先做透珠宝饰品垂类，自带珠宝风主题和材质、尺寸、刻字等专属商品属性。
+entries:
+  - name: 平台首页 / 店铺前台
+    url: https://shop.banono-us.com/
+  - name: 商家后台
+    url: https://lumee.banono-us.com/
+  - name: 预发布 · 前台
+    url: https://staging.shop.banono-us.com/
+  - name: 预发布 · 商家后台
+    url: https://admin-staging.shop.banono-us.com/
+modules:
+  - name: 店铺前台
+    desc: 服务端渲染主题：首页、商品、购物车、单页结账、会员中心、博客
+    status: 开发中
+  - name: 商品与库存
+    desc: 多规格 SKU、分类、库存、CSV 导入、数字商品文件
+    status: 开发中
+  - name: 订单与售后
+    desc: 订单、手动下单、发货物流追踪、退货退款、弃单挽回
+    status: 开发中
+  - name: 支付
+    desc: Stripe、PayPal、Airwallex 收款与 Webhook
+    status: 开发中
+  - name: 主题装修
+    desc: 主题库、可视化装修器、菜单、自定义页面、跳转规则
+    status: 开发中
+  - name: 营销
+    desc: 折扣、促销、礼品卡、会员积分、邮件营销与自动化、联盟推广、评论
+    status: 开发中
+  - name: 店铺设置
+    desc: 自有域名、多币种、多语言翻译、运费、税费、员工权限、两步验证
+    status: 开发中
+  - name: B2B 与订阅
+    desc: 企业客户、价格表、报价单、订阅商品
+    status: 开发中
+  - name: 数据分析
+    desc: 销售仪表盘、留存、风控
+    status: 开发中
+  - name: 开放平台
+    desc: 应用市场、OAuth、开发者 API、合作伙伴主题与应用分成
+    status: 开发中
+  - name: 平台运营后台
+    desc: 商家管理、套餐计费、应用 / 主题审核、结算
+    status: 开发中
+stack:
+  - Laravel 12
+  - Vue 3
+  - Naive UI
+  - MySQL
+  - Redis 队列
+  - Caddy 按需证书

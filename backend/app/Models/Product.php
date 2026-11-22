@@ -17,7 +17,7 @@ class Product extends Model
 
     protected $fillable = [
         'title', 'handle', 'description', 'status', 'vendor',
-        'product_type', 'tags', 'featured_image', 'seo', 'taxable', 'is_gift_card', 'subscription', 'b2b_only', 'digital',
+        'product_type', 'tags', 'featured_image', 'seo', 'taxable', 'is_gift_card', 'subscription', 'b2b_only', 'digital', 'size_chart', 'supplier_id',
     ];
 
     protected function casts(): array
@@ -60,11 +60,20 @@ class Product extends Model
         return $this->belongsToMany(Collection::class)->withPivot('position');
     }
 
-    /** On sale in the storefront. B2B-only products are hidden unless the signed-in buyer is a business buyer. */
+    /** On sale in the storefront. B2B-only products are hidden unless the signed-in buyer is a business buyer; products a market excludes are hidden there. */
     public function scopeActive($query)
     {
+        $excluded = array_keys(app(\App\Markets\MarketContext::class)->excluded());   // not sold in this market
+
         return $query->where('status', 'active')
-            ->when(! app(\App\B2B\B2B::class)->isBusiness(), fn ($q) => $q->where($q->getModel()->getTable().'.b2b_only', false));
+            ->when(! app(\App\B2B\B2B::class)->isBusiness(), fn ($q) => $q->where($q->getModel()->getTable().'.b2b_only', false))
+            ->when($excluded, fn ($q) => $q->whereNotIn($q->getModel()->getTable().'.id', $excluded));
+    }
+
+    /** Sold to this shopper: active, and not excluded from the current market. */
+    public function isSellable(): bool
+    {
+        return $this->status === 'active' && app(\App\Markets\MarketContext::class)->sells((int) $this->id);
     }
 
     public function hasOnlyDefaultVariant(): bool

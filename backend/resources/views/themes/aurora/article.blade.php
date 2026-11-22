@@ -36,9 +36,9 @@
     .rte h2 { font-family: var(--font-display); font-size: 28px; margin: 40px 0 12px; font-weight: 600; }
     .rte h3 { font-size: 20px; margin: 28px 0 8px; }
     .rte p { margin: 0 0 18px; }
-    .rte ul, .rte ol { padding-left: 22px; margin: 0 0 18px; }
+    .rte ul, .rte ol { padding-inline-start: 22px; margin: 0 0 18px; }
     .rte a { color: var(--rose-gold-700); text-decoration: underline; }
-    .rte blockquote { margin: 0 0 18px; padding: 4px 0 4px 16px; border-left: 3px solid var(--rose-gold-300); color: var(--ink-muted); }
+    .rte blockquote { margin: 0 0 18px; padding: 4px 0 4px 16px; border-inline-start: 3px solid var(--rose-gold-300); color: var(--ink-muted); }
     .rte img { max-width: 100%; height: auto; border-radius: 8px; }
     .related { max-width: 1100px; margin: 64px auto 0; padding: 40px 16px 64px; border-top: 1px solid var(--border); }
     .related h2 { font-size: 26px; margin: 0 0 24px; text-align: center; }

@@ -17,6 +17,13 @@ class ContentController extends Controller
     public function page(CurrentStore $current, string $handle): View
     {
         $page = Page::published()->where('handle', $handle)->firstOrFail();
+        if ($page->layout === 'blocks') {
+            // Campaign landing page: its blocks from the theme (defaults until it's designed)
+            $theme = app(\App\Themes\ThemeContext::class);
+            $blocks = $theme->pageSections($page->id) ?? app(\App\Themes\ThemeService::class)->pageDefaults($theme->theme, $page->id);
+
+            return view($current->themeView('landing'), compact('page', 'blocks'));
+        }
 
         return view($current->themeView('page'), compact('page'));
     }
@@ -41,6 +48,9 @@ class ContentController extends Controller
                 ->with('variants:id,product_id,price,compare_at_price,inventory_quantity,position')
                 ->paginate(24)
                 ->withQueryString();
+            if ((int) $request->query('page', 1) <= 1) {
+                app(\App\Analytics\Visits::class)->search($q, $products->total());   // what shoppers look for (and don't find)
+            }
         }
 
         return view($current->themeView('search'), compact('q', 'products'));
@@ -67,8 +77,8 @@ class ContentController extends Controller
         foreach (Collection::published()->get(['handle', 'updated_at']) as $c) {
             $urls[] = ['loc' => $base.'/collections/'.rawurlencode($c->handle), 'lastmod' => $c->updated_at];
         }
-        foreach (Product::active()->latest('updated_at')->limit(10000)->get(['handle', 'updated_at']) as $p) {
-            $urls[] = ['loc' => $base.'/products/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at];
+        foreach (Product::active()->latest('updated_at')->limit(10000)->get(['id', 'handle', 'updated_at']) as $p) {
+            $urls[] = ['loc' => $base.'/products/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at, 'product_id' => $p->id];
         }
         foreach (Page::published()->get(['handle', 'updated_at']) as $p) {
             $urls[] = ['loc' => $base.'/pages/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at];
@@ -87,6 +97,20 @@ class ContentController extends Controller
             foreach ($originals as $u) {
                 $path = substr($u['loc'], strlen($base));
                 $urls[] = ['loc' => $base.'/'.$code.($path === '/' ? '' : $path), 'lastmod' => $u['lastmod']];
+            }
+        }
+
+        // …and under each market and its languages ("/es-mx/products/…"), minus products a market doesn't sell
+        foreach (\App\Markets\MarketContext::live($store) as $m) {
+            $excluded = \App\Models\MarketProductExclusion::where('market_id', $m->id)->pluck('product_id')->flip();
+            foreach ($m->languages() as $code) {
+                foreach ($originals as $u) {
+                    if (isset($u['product_id']) && $excluded->has($u['product_id'])) {
+                        continue;
+                    }
+                    $path = substr($u['loc'], strlen($base));
+                    $urls[] = ['loc' => $base.$m->prefix($code).($path === '/' ? '' : $path), 'lastmod' => $u['lastmod']];
+                }
             }
         }
 

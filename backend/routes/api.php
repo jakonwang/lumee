@@ -32,6 +32,9 @@ use Illuminate\Support\Facades\Route;
 | Merchant admin API — consumed by the Vue admin app (/admin).
 | Store context comes from the X-Store-Id header (see ResolveAdminStore).
 */
+// Browser extension (采集插件): sends the product page the merchant has open. Its own key, not a login.
+Route::post('collector/pages', [\App\Http\Controllers\Admin\CollectController::class, 'fromExtension'])->middleware('throttle:60,1');
+
 Route::prefix('admin')->group(function () {
     Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:register');
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
@@ -101,6 +104,63 @@ Route::prefix('admin')->group(function () {
                 Route::get('products/import/{id}', [ProductImportController::class, 'show'])->whereNumber('id');
                 Route::post('products/import/{id}/start', [ProductImportController::class, 'start'])->whereNumber('id');
                 Route::apiResource('products', ProductController::class);
+                $pu = \App\Http\Controllers\Admin\PurchasingController::class;   // purchasing: suppliers, POs (采购)
+                Route::get('purchasing', [$pu, 'index']);
+                Route::get('suppliers', fn () => response()->json(['data' => \App\Models\Supplier::orderBy('name')->get(['id', 'name'])]));   // picker
+                Route::post('suppliers', [$pu, 'saveSupplier']);
+                Route::put('suppliers/{supplier}', [$pu, 'updateSupplier'])->whereNumber('supplier');
+                Route::delete('suppliers/{supplier}', [$pu, 'destroySupplier'])->whereNumber('supplier');
+                Route::post('suppliers/{supplier}/link', [$pu, 'resetSupplierLink'])->whereNumber('supplier');
+                Route::post('suppliers/{supplier}/products', [$pu, 'assignProducts'])->whereNumber('supplier');
+                Route::post('purchase-orders', [$pu, 'createOrder']);
+                Route::post('purchase-orders/{order}/action', [$pu, 'orderAction'])->whereNumber('order');
+                $wc = \App\Http\Controllers\Admin\WholesaleCatalogController::class;   // wholesale catalogs (批发目录)
+                Route::get('wholesale-catalogs', [$wc, 'index']);
+                Route::post('wholesale-catalogs', [$wc, 'store']);
+                Route::put('wholesale-catalogs/{catalog}', [$wc, 'update'])->whereNumber('catalog');
+                Route::delete('wholesale-catalogs/{catalog}', [$wc, 'destroy'])->whereNumber('catalog');
+                Route::post('wholesale-catalogs/{catalog}/order-key', [$wc, 'orderKey'])->whereNumber('catalog');
+                $rs = \App\Http\Controllers\Admin\ResearchController::class;   // research radar (选品雷达)
+                Route::get('research', [$rs, 'index']);
+                Route::put('research/settings', [$rs, 'saveSettings']);
+                Route::post('research/discover', [$rs, 'discover'])->middleware('throttle:20,1');
+                Route::post('research/opportunities', [$rs, 'store']);
+                Route::post('research/import', [$rs, 'import'])->middleware('throttle:20,1');   // CSV from TikTok / Keepa / Helium 10…
+                Route::put('research/opportunities/{opportunity}', [$rs, 'update'])->whereNumber('opportunity');
+                Route::delete('research/opportunities/{opportunity}', [$rs, 'destroy'])->whereNumber('opportunity');
+                Route::post('research/enrich', [$rs, 'enrich'])->middleware('throttle:20,1');
+                Route::post('research/analyze', [$rs, 'analyze'])->middleware('throttle:20,1');
+                $tl = \App\Http\Controllers\Admin\TestingController::class;   // test-and-learn (测款)
+                Route::get('testing', [$tl, 'index']);
+                Route::put('testing/settings', [$tl, 'saveSettings']);
+                Route::post('testing/bulk', [$tl, 'bulk']);
+                Route::get('testing/search-terms', [$tl, 'searchTerms']);
+                Route::get('testing/products/{product}', [$tl, 'product']);
+                Route::post('products/{product}/experiments', [$tl, 'startExperiment']);
+                Route::post('experiments/{experiment}/finish', [$tl, 'finishExperiment'])->whereNumber('experiment');
+                $ct = \App\Http\Controllers\Admin\ContentController::class;   // content workshop (内容工坊)
+                Route::get('content/brand-kit', [$ct, 'brandKit']);
+                Route::put('content/brand-kit', [$ct, 'saveBrandKit']);
+                Route::get('content/products', [$ct, 'products']);
+                Route::post('content/rescore', [$ct, 'rescore'])->middleware('throttle:10,1');
+                Route::post('content/images/standardize', [$ct, 'standardize'])->middleware('throttle:30,1');
+                Route::get('products/{product}/content', [$ct, 'product']);
+                Route::post('products/{product}/content/suggest', [$ct, 'suggest'])->middleware('throttle:30,1');
+                Route::post('products/{product}/content/apply', [$ct, 'apply']);
+                Route::post('products/{product}/content/versions/{version}/restore', [$ct, 'restore'])->whereNumber('version');
+                Route::post('products/{product}/images/{image}/revert', [$ct, 'revertImage'])->whereNumber('image');
+                Route::post('products/{product}/images/{image}/scene', [$ct, 'sceneImage'])->whereNumber('image')->middleware('throttle:10,1');   // AI scene / model picture
+                $cl = \App\Http\Controllers\Admin\CollectController::class;   // product collection (采集)
+                Route::get('collect/items', [$cl, 'index']);
+                Route::post('collect/items', [$cl, 'store'])->middleware('throttle:imports');
+                Route::post('collect/items/bulk', [$cl, 'bulk'])->middleware('throttle:60,1');
+                Route::get('collect/items/{item}', [$cl, 'show'])->whereNumber('item');
+                Route::put('collect/items/{item}', [$cl, 'update'])->whereNumber('item');
+                Route::get('collect/pricing-rules', [$cl, 'rules']);
+                Route::put('collect/pricing-rules', [$cl, 'saveRules']);
+                Route::post('collect/extension-key', [$cl, 'extensionKey'])->middleware('throttle:10,1');
+                Route::get('products/{product}/markets', [\App\Http\Controllers\Admin\MarketController::class, 'product']);
+                Route::put('products/{product}/markets', [\App\Http\Controllers\Admin\MarketController::class, 'updateProduct']);
                 $pl = \App\Http\Controllers\Admin\PriceListController::class;
                 Route::get('price-lists', [$pl, 'index']);
                 Route::post('price-lists', [$pl, 'store']);
@@ -192,6 +252,24 @@ Route::prefix('admin')->group(function () {
                 Route::put('theme', [ThemeController::class, 'update'])->middleware('throttle:theme-save');
                 Route::post('theme/publish', [ThemeController::class, 'publish']);
                 Route::post('theme/discard', [ThemeController::class, 'discard']);
+                Route::get('theme/versions', [ThemeController::class, 'versions']);
+                Route::post('theme/generate', [ThemeController::class, 'generate'])->middleware('throttle:10,1');   // automatic design (draft)
+                Route::get('theme/check', [ThemeController::class, 'check']);
+                Route::get('theme/schedules', [ThemeController::class, 'schedules']);
+                Route::post('theme/schedules', [ThemeController::class, 'schedule'])->middleware('throttle:20,1');
+                Route::post('theme/schedules/{schedule}/approve', [ThemeController::class, 'approveSchedule'])->whereNumber('schedule');
+                Route::post('theme/schedules/{schedule}/cancel', [ThemeController::class, 'cancelSchedule'])->whereNumber('schedule');
+                Route::put('theme/auto-campaigns', [ThemeController::class, 'autoCampaigns']);
+                Route::post('theme/ai/propose', [ThemeController::class, 'aiPropose'])->middleware('throttle:20,1');   // AI design (proposal → preview → apply)
+                Route::post('theme/ai/apply', [ThemeController::class, 'aiApply']);
+                Route::post('theme/ai/review', [ThemeController::class, 'aiReview'])->middleware('throttle:20,1');
+                Route::post('theme/ai/localize', [ThemeController::class, 'aiLocalize'])->middleware('throttle:10,1');
+                Route::post('theme/experiments', [ThemeController::class, 'startExperiment']);   // design A/B test (draft vs live)
+                $dp = \App\Http\Controllers\Admin\DesignPerformanceController::class;   // 装修效果
+                Route::get('design/performance', [$dp, 'index']);
+                Route::post('design/insights/refresh', [$dp, 'refresh'])->middleware('throttle:5,1');
+                Route::post('design/experiments/{experiment}/finish', [$dp, 'finish'])->whereNumber('experiment');
+                Route::post('theme/versions/{version}/restore', [ThemeController::class, 'restoreVersion'])->whereNumber('version');
                 // Theme library: saved themes, copies, export / import (Lumée packages and Shopify themes)
                 Route::get('themes', [\App\Http\Controllers\Admin\ThemeLibraryController::class, 'index']);
                 Route::post('themes', [\App\Http\Controllers\Admin\ThemeLibraryController::class, 'store']);
@@ -235,6 +313,7 @@ Route::prefix('admin')->group(function () {
                 // Lead finder (获客雷达)
                 $lf = \App\Http\Controllers\Admin\LeadController::class;
                 Route::get('lead-finder/meta', [$lf, 'meta']);
+                Route::post('leads/{lead}/catalog', [\App\Http\Controllers\Admin\WholesaleCatalogController::class, 'forLead'])->whereNumber('lead');   // wholesale catalog link for a prospect
                 Route::put('lead-finder/settings', [$lf, 'settings'])->middleware('throttle:30,1');
                 Route::post('lead-finder/settings/test', [$lf, 'testKey'])->middleware('throttle:10,1');
                 Route::get('lead-searches', [$lf, 'searches']);
@@ -299,6 +378,14 @@ Route::prefix('admin')->group(function () {
                 Route::get('settings/currencies', [CurrencySettingsController::class, 'show']);
                 Route::put('settings/currencies', [CurrencySettingsController::class, 'update']);
                 Route::post('settings/currencies/refresh', [CurrencySettingsController::class, 'refreshRates'])->middleware('throttle:domains');
+                $mk = \App\Http\Controllers\Admin\MarketController::class;   // markets (country sites)
+                Route::get('markets', [$mk, 'index']);
+                Route::post('markets', [$mk, 'store']);
+                Route::put('markets/{market}', [$mk, 'update']);
+                Route::delete('markets/{market}', [$mk, 'destroy']);
+                Route::put('markets/{market}/localization', [$mk, 'saveLocalization']);
+                Route::post('markets/{market}/preset', [$mk, 'applyPreset']);
+                Route::get('markets/{market}/calendar', [$mk, 'calendar'])->whereNumber('market');
                 Route::get('settings/languages', [TranslationController::class, 'languages']);
                 Route::put('settings/languages', [TranslationController::class, 'updateLanguages']);
                 $af = \App\Http\Controllers\Admin\AffiliateController::class;

@@ -27,7 +27,7 @@
     .nl-later { margin-top: 12px; border: 0; background: none; color: var(--ink-muted); font-size: 13px; cursor: pointer; text-decoration: underline; }
     .nl-msg { margin: 14px 0 0; font-size: 15px; line-height: 1.6; }
     .nl-msg strong { letter-spacing: 1px; }
-    .nl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    .nl-hp { position: absolute; inset-inline-start: -9999px; width: 1px; height: 1px; opacity: 0; }
 </style>
 <script>
 (function () {

@@ -128,6 +128,7 @@ const todoText: Record<string, string> = {
   overdue_invoices: t('笔账期订单已逾期'),
   quote_requests: t('张询价单待报价'),
   b2b_applications: t('个批发申请待审核'),
+  campaign_designs: t('个活动装修版本待确认'),
 }
 const todos = computed(() => (stats.value?.todos ?? []).filter((x) => x.count > 0))
 

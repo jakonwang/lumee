@@ -51,7 +51,7 @@ class Promotion extends Model
         $value = (float) ($this->config['value'] ?? 0);
         $off = $this->value_type === 'percentage'
             ? (int) round($amount * min(100, max(0, $value)) / 100)
-            : (int) round($value * 100) * $times;
+            : app(\App\Markets\MarketContext::class)->money((int) round($value * 100)) * $times;   // fixed values are in the store currency
 
         return min($amount, max(0, $off));
     }

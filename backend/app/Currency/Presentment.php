@@ -36,6 +36,10 @@ class Presentment
             return $this->resolved;
         }
         $store = app(CurrentStore::class)->getOrFail();
+        // Inside a market prices are already in the market currency, which is also what checkout charges
+        if (app(\App\Markets\MarketContext::class)->activeFor((int) $store->id)) {
+            return $this->resolved = ['currency' => $store->currency, 'rate' => 1.0, 'rounding' => 'none'];
+        }
         $settings = CurrencySettings::for($store);
         $offered = $settings->offered();
 

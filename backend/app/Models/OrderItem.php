@@ -10,7 +10,7 @@ class OrderItem extends Model
     use BelongsToStore;
 
     protected $fillable = [
-        'plan', 'preorder',
+        'plan', 'preorder', 'gift',
         'store_id', 'product_id', 'variant_id', 'title', 'variant_title',
         'sku', 'image', 'price', 'quantity', 'refunded_quantity', 'total',
     ];
@@ -18,7 +18,7 @@ class OrderItem extends Model
     protected function casts(): array
     {
         return [
-            'preorder' => 'boolean','price' => 'integer', 'quantity' => 'integer', 'refunded_quantity' => 'integer', 'total' => 'integer'];
+            'preorder' => 'boolean', 'gift' => 'array','price' => 'integer', 'quantity' => 'integer', 'refunded_quantity' => 'integer', 'total' => 'integer'];
     }
 
     public function refundableQuantity(): int

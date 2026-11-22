@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ \App\I18n\Localization::dir() }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,7 +18,7 @@
         .link input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #DDE5E0; border-radius: 8px; font-size: 14px; }
         .link button { padding: 10px 16px; border: 0; border-radius: 8px; background: #0E8A5F; color: #fff; font-weight: 600; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        td, th { text-align: left; padding: 8px 4px; border-top: 1px solid #EEF2EF; }
+        td, th { text-align: start; padding: 8px 4px; border-top: 1px solid #EEF2EF; }
         th { color: #5C6B63; font-weight: 500; border-top: 0; }
         .tag { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: #EAF7F1; color: #0A7350; }
         .tag.pending { background: #FFF7E6; color: #8A5A00; }

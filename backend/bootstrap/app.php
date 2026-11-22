@@ -46,8 +46,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.scope' => \App\Http\Middleware\RequireApiScope::class,
         ]);
 
+        // Set by storefront JS ("stay here" on the market suggestion), so it can't be encrypted
+        $middleware->encryptCookies(except: ['lumee_market_choice']);
+
         // Stripe signs its webhooks; CSRF tokens don't apply there.
-        $middleware->validateCsrfTokens(except: ['webhooks/*']);
+        $middleware->validateCsrfTokens(except: ['webhooks/*', 'wholesale/catalog/*/orders']);
 
         // Tenant must be resolved BEFORE route-model binding, so {product} lookups
         // are scoped to the current store (prevents cross-store access by ID).

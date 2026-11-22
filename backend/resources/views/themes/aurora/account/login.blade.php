@@ -20,7 +20,7 @@
                 @error('email')<p class="err">{{ $message }}</p>@enderror
                 <label class="sr" for="password">{{ __('Password') }}</label>
                 <input class="field" id="password" type="password" name="password" placeholder="{{ __('Password') }}" autocomplete="current-password" required>
-                <div style="text-align:right;font-size:13px;"><a href="/account/forgot-password" style="color:var(--ink-muted);text-decoration:underline;">{{ __('Forgot your password?') }}</a></div>
+                <div style="text-align: end;font-size:13px;"><a href="/account/forgot-password" style="color:var(--ink-muted);text-decoration:underline;">{{ __('Forgot your password?') }}</a></div>
                 <button class="btn btn-block" type="submit">{{ __('Log in') }}</button>
             </form>
             <p class="alt">{{ __('New here?') }} <a href="/account/register">{{ __('Create an account') }}</a></p>

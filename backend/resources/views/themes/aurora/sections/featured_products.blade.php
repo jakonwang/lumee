@@ -1,6 +1,10 @@
-{{-- Products come from the chosen collection, else the newest products (prepared in StorefrontController::home) --}}
-@php($items = ($sectionProducts[$section['id']] ?? $products)->take($s['limit']))
-@php($source = $sectionCollections[$section['id']] ?? null)
+{{-- Products come from the chosen collection, else the newest products (App\Themes\SectionData) --}}
+@php
+    $items = app(\App\Themes\SectionData::class)->products($s['collection'] ? 'collection' : 'newest', $s['collection'], (int) $s['limit']);
+@endphp
+@php
+    $source = $s['collection'] ? \App\Models\Collection::published()->find($s['collection']) : null;
+@endphp
 <section class="section" id="shop" data-section-id="{{ $section['id'] }}">
     <div class="wrap">
         @if ($s['eyebrow'] || $s['heading'])

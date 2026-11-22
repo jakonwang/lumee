@@ -1,4 +1,7 @@
-@php($list = $sectionCollections[$section['id']] ?? collect())
+{{-- The chosen collections in order, else the first 4 (App\Themes\SectionData) --}}
+@php
+    $list = app(\App\Themes\SectionData::class)->collections([$s['collection_1'], $s['collection_2'], $s['collection_3'], $s['collection_4']], 4);
+@endphp
 <section class="section" data-section-id="{{ $section['id'] }}">
     <div class="wrap">
         @if ($s['eyebrow'] || $s['heading'])

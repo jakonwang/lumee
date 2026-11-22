@@ -24,6 +24,25 @@ class Store extends Model
         ];
     }
 
+    /**
+     * Inside a market (storefront request at /{lang}-{market}/…) the store sells in the market
+     * currency, so this reads as that currency. The saved currency is baseCurrency().
+     */
+    protected function currency(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::get(function ($value) {
+            $markets = app(\App\Markets\MarketContext::class);
+
+            return $this->id && $markets->activeFor((int) $this->id) ? $markets->currency() : $value;
+        });
+    }
+
+    /** The currency the merchant set for the store (prices, shipping rates and discounts are entered in it). */
+    public function baseCurrency(): string
+    {
+        return (string) ($this->attributes['currency'] ?? '');
+    }
+
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');

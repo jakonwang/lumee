@@ -9,6 +9,9 @@ Schedule::command('lumee:prune-images')->dailyAt('03:30');
 // Exchange rates for storefront currency conversion (display only — payments use the store currency).
 Schedule::command('lumee:exchange-rates')->dailyAt('04:10');
 
+// Test-and-learn verdicts (hot / cold / …) for every active product
+Schedule::command('lumee:test-and-learn')->dailyAt('04:40');
+
 // Platform billing: daily renewals/expiry/reminders; transaction fees invoiced on the 1st of each month.
 Schedule::command('lumee:billing-daily')->dailyAt('02:30');
 Schedule::command('lumee:bill-fees')->monthlyOn(1, '05:00');
@@ -39,3 +42,10 @@ Schedule::command('lumee:bill-app-charges')->dailyAt('05:30');
 
 // Developer payouts: last month's paid marketplace earnings (apps + themes), on the 2nd.
 Schedule::command('lumee:partner-payouts')->monthlyOn(2, '06:00');
+
+// Campaign designs: go live / come down on time; daily, prepare versions for upcoming shopping events (stores that turned it on)
+Schedule::command('lumee:theme-schedules')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('lumee:theme-schedules --prepare')->dailyAt('05:20')->withoutOverlapping();
+
+// Weekly look at each market's numbers: findings and AI design suggestions (Mondays)
+Schedule::command('lumee:design-insights')->weeklyOn(1, '06:00')->withoutOverlapping();

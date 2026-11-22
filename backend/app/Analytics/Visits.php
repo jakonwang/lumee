@@ -161,7 +161,7 @@ class Visits
 
         $visitor = (string) $this->req()->cookie(self::VISITOR_COOKIE);
         $returning = Str::isUuid($visitor);
-        $visitor = $returning ? $visitor : (string) Str::uuid();
+        $visitor = $returning ? $visitor : ($this->newVisitor ?? (string) Str::uuid());   // the id A/B tests already used on this page
         $row = [
             'store_id' => $store->id, 'token' => (string) Str::uuid(), 'visitor' => $visitor,
             'returning' => $returning && DB::table('analytics_sessions')->where('store_id', $store->id)->where('visitor', $visitor)->exists(),
@@ -170,6 +170,9 @@ class Visits
             ...$this->attribution($store),
             'country' => $this->country(),
             ...$this->device((string) $this->req()->userAgent()),
+            // Which market site, and (during a design A/B test there) which version this visitor sees
+            'market_id' => app(\App\Markets\MarketContext::class)->market()?->id,
+            ...app(\App\Themes\DesignExperiments::class)->assignment($store->id, $visitor),
         ];
         $row['id'] = DB::table('analytics_sessions')->insertGetId($row);
         $row['order_id'] = null;
@@ -259,6 +262,49 @@ class Visits
             ['store_id', 'product_id', 'date'],
             [$column => DB::raw("analytics_product_stats.{$column} + 1")],
         );
+        // The same per market (0 = default site), for test-and-learn by country
+        DB::table('product_market_stats')->upsert(
+            [['store_id' => $store->id, 'product_id' => $productId, 'market_id' => (int) app(\App\Markets\MarketContext::class)->market()?->id,
+                'date' => $date, 'views' => $column === 'views' ? 1 : 0, 'carts' => $column === 'carts' ? 1 : 0]],
+            ['store_id', 'product_id', 'market_id', 'date'],
+            [$column => DB::raw("product_market_stats.{$column} + 1")],
+        );
+    }
+
+    /** A storefront search and how many products it found (no-result searches show what to stock). */
+    public function search(string $term, int $results): void
+    {
+        $this->guard(function () use ($term, $results) {
+            $term = Str::limit(trim(preg_replace('/\s+/u', ' ', mb_strtolower($term))), 100, '');
+            if ($term === '' || ! $this->trackable($this->req())) {
+                return;
+            }
+            $store = $this->current->getOrFail();
+            DB::table('search_terms')->upsert(
+                [['store_id' => $store->id, 'market_id' => (int) app(\App\Markets\MarketContext::class)->market()?->id,
+                    'date' => CarbonImmutable::now($store->timezone ?: 'UTC')->toDateString(), 'term' => $term,
+                    'searches' => 1, 'zero_results' => $results === 0 ? 1 : 0, 'results' => $results]],
+                ['store_id', 'market_id', 'date', 'term'],
+                ['searches' => DB::raw('search_terms.searches + 1'), 'zero_results' => DB::raw('search_terms.zero_results + '.($results === 0 ? 1 : 0)), 'results' => $results],
+            );
+        });
+    }
+
+    /** Visitor id made up for a first visit before its session exists (the page renders before it's counted). */
+    private ?string $newVisitor = null;
+
+    /**
+     * This browser's visitor id (A/B test arms). On a first visit it is made up now and the session counted
+     * after the page uses the same one, so the version shown and the version credited always match.
+     */
+    public function visitorId(): ?string
+    {
+        $v = $this->session?->visitor ?? (string) $this->req()->cookie(self::VISITOR_COOKIE);
+        if (! Str::isUuid((string) $v) && $this->current->check()) {
+            $v = $this->newVisitor ??= (string) Str::uuid();
+        }
+
+        return Str::isUuid((string) $v) ? (string) $v : null;
     }
 
     private function queueCookies(string $session, string $visitor): void

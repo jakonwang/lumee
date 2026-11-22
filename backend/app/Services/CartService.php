@@ -46,11 +46,12 @@ class CartService
         return $this->cart;
     }
 
-    public function add(int $variantId, int $quantity, ?string $plan = null): Cart
+    /** @param  array{email?: ?string, name?: ?string, message?: ?string}|null  $gift  recipient of a gift card product */
+    public function add(int $variantId, int $quantity, ?string $plan = null, ?array $gift = null): Cart
     {
         // Scoped by BelongsToStore: a variant from another store is simply "not found"
         $variant = ProductVariant::with('product')->findOrFail($variantId);
-        abort_unless($variant->product->status === 'active', 404);
+        abort_unless($variant->product->isSellable(), 404);   // active, and sold in this market
         $b2b = app(\App\B2B\B2B::class);
         abort_if($variant->product->b2b_only && ! $b2b->isBusiness(), 404);
         if ($b2b->hidePrices()) {
@@ -71,6 +72,11 @@ class CartService
         $this->assertRules($variant->id, $newQty);
 
         $item->quantity = $newQty;
+        // Gift cards: send to someone else (the latest recipient entered wins for this line)
+        if ($variant->product->is_gift_card && $gift && ! empty($gift['email'])) {
+            $item->gift = array_filter(['email' => mb_strtolower(trim($gift['email'])), 'name' => trim((string) ($gift['name'] ?? '')) ?: null,
+                'message' => trim((string) ($gift['message'] ?? '')) ?: null]);
+        }
         $item->save();
 
         return $this->refresh();

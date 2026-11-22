@@ -72,6 +72,8 @@ class ProductController extends Controller
             'taxable' => ['sometimes', 'boolean'],
             'is_gift_card' => ['sometimes', 'boolean'],
             'b2b_only' => ['sometimes', 'boolean'],
+            'supplier_id' => ['sometimes', 'nullable', 'integer'],
+            'size_chart' => ['sometimes', 'nullable', \Illuminate\Validation\Rule::in(\App\Catalog\SizeCharts::TYPES)],   // US sizes → each market's system
             'digital' => ['sometimes', 'boolean'],
             'upsell_ids' => ['sometimes', 'nullable', 'array', 'max:3'],
             'upsell_ids.*' => ['integer'],

@@ -17,12 +17,13 @@ class Cart extends Model
         return ['checkout_started_at' => 'datetime', 'recovery_sent_at' => 'datetime'];
     }
 
-    /** Remember who reached checkout (for the abandoned checkout email) and in which language. */
+    /** Remember who reached checkout (for the abandoned checkout email) and in which language and market. */
     public function rememberContact(?string $email): void
     {
         $this->forceFill([
             'email' => $email ? mb_strtolower(trim($email)) : $this->email,
             'locale' => app(\App\I18n\Localization::class)->locale(),
+            'market_id' => app(\App\Markets\MarketContext::class)->market()?->id,
             'checkout_started_at' => $this->checkout_started_at ?? now(),
         ])->save();
     }

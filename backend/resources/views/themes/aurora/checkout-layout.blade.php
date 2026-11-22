@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ $store->locale }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ \App\I18n\Localization::dir() }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,7 +17,7 @@
         .co { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
         .co-main { padding: 48px 56px 64px; display: flex; justify-content: flex-end; }
         .co-main > div { width: 100%; max-width: 560px; }
-        .co-side { background: var(--rose-gold-50); border-left: 1px solid var(--border); padding: 48px 56px; }
+        .co-side { background: var(--rose-gold-50); border-inline-start: 1px solid var(--border); padding: 48px 56px; }
         .co-side > div { max-width: 420px; position: sticky; top: 48px; }
         .logo { display: inline-block; font-family: var(--font-display); font-size: 28px; letter-spacing: .25em; text-transform: uppercase; color: var(--rose-gold-700); text-decoration: none; margin-bottom: 28px; }
         h2 { font-size: 17px; font-weight: 600; margin: 32px 0 14px; }
@@ -40,7 +40,7 @@
         .secure { text-align: center; font-size: 12px; color: var(--ink-muted); margin-top: 14px; }
         .back { display: inline-block; margin-top: 18px; font-size: 13px; color: var(--rose-gold-700); }
         .errors { background: #FBEFF0; border: 1px solid #F0CDD1; color: var(--danger); border-radius: 10px; padding: 12px 16px; font-size: 14px; margin-bottom: 8px; }
-        .errors ul { margin: 0; padding-left: 18px; }
+        .errors ul { margin: 0; padding-inline-start: 18px; }
         .item { display: flex; gap: 14px; align-items: center; margin-bottom: 16px; }
         .item .thumb { position: relative; width: 64px; height: 64px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex: none; }
         .item .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
@@ -49,16 +49,17 @@
         .item .name { flex: 1; font-size: 14px; }
         .item .name small { display: block; color: var(--ink-muted); }
         .row { display: flex; justify-content: space-between; font-size: 14px; margin: 10px 0; }
+        [hidden] { display: none !important; }   /* rows toggled by the live totals script */
         .row.discount { color: var(--rose-gold-700); }
         .consent { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-muted); margin: 10px 0 4px; cursor: pointer; }
         .row.discount-note { font-size: 12px; color: var(--ink-muted); margin-top: -4px; }
-        .code-tag { font-size: 11px; letter-spacing: .08em; padding: 1px 8px; border-radius: 999px; background: var(--rose-gold-100); margin-left: 4px; }
+        .code-tag { font-size: 11px; letter-spacing: .08em; padding: 1px 8px; border-radius: 999px; background: var(--rose-gold-100); margin-inline-start: 4px; }
         .row.total { font-size: 20px; font-weight: 600; border-top: 1px solid var(--border); padding-top: 18px; margin-top: 18px; }
-        .row.total small { font-size: 12px; color: var(--ink-muted); font-weight: 400; margin-right: 6px; }
+        .row.total small { font-size: 12px; color: var(--ink-muted); font-weight: 400; margin-inline-end: 6px; }
         .money { font-variant-numeric: tabular-nums; }
         @media (max-width: 900px) {
             .co { grid-template-columns: 1fr; }
-            .co-side { order: -1; border-left: none; border-bottom: 1px solid var(--border); padding: 24px 16px; }
+            .co-side { order: -1; border-inline-start: none; border-bottom: 1px solid var(--border); padding: 24px 16px; }
             .co-main { padding: 24px 16px 48px; }
             .grid3 { grid-template-columns: 1fr 1fr; }
         }

@@ -27,6 +27,8 @@ class OrderResource extends JsonResource
             'discount_lines' => collect($this->discount_lines ?? [])->map(fn ($l) => [...$l, 'amount' => Money::format((int) $l['amount'])])->values(),
             'gift_card_total' => Money::format((int) $this->gift_card_total),
             'tax_total' => Money::format($this->tax_total),
+            'duty_total' => Money::format((int) $this->duty_total),   // import duties charged at checkout (market orders)
+            'payment_fee' => Money::format((int) $this->payment_fee),   // cash-on-delivery fee
             'taxes_included' => (bool) $this->taxes_included,
             'tax_lines' => $this->tax_lines ?? [],
             'total' => Money::format($this->total),
@@ -82,6 +84,7 @@ class OrderResource extends JsonResource
                 'refunded_quantity' => $i->refunded_quantity,
                 'total' => Money::format($i->total),
                 'preorder' => (bool) $i->preorder,
+                'gift' => $i->gift,   // gift card recipient {email, name, message}
             ])),
             'downloads' => $this->whenLoaded('items', fn () => \App\Catalog\DigitalDelivery::links($this->resource, '')),
             // Refund form needs these to suggest an amount (discount spread over items, shipping left)

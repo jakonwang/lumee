@@ -239,7 +239,7 @@ class PayPalGateway implements PaymentGateway
 
     private function locale(): string
     {
-        $map = ['en' => 'en-US', 'fr' => 'fr-FR', 'de' => 'de-DE', 'es' => 'es-ES', 'it' => 'it-IT', 'ja' => 'ja-JP'];
+        $map = ['en' => 'en-US', 'fr' => 'fr-FR', 'de' => 'de-DE', 'es' => 'es-ES', 'it' => 'it-IT', 'pt' => 'pt-BR', 'ja' => 'ja-JP'];
 
         return $map[substr(app()->getLocale(), 0, 2)] ?? 'en-US';
     }

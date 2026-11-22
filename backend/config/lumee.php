@@ -19,7 +19,7 @@ return [
     'tls_ask_token' => env('LUMEE_TLS_ASK_TOKEN'),
 
     // Currencies a store can sell in (2-decimal currencies; Money assumes cents)
-    'currencies' => ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD', 'CNY', 'CHF', 'SEK', 'DKK', 'NOK', 'MXN', 'BRL', 'AED'],
+    'currencies' => ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD', 'CNY', 'CHF', 'SEK', 'DKK', 'NOK', 'MXN', 'BRL', 'AED', 'IDR', 'PHP', 'THB', 'MYR'],
 
     // Merchant admin SPA URL (linked from the platform landing page)
     'admin_url' => env('LUMEE_ADMIN_URL', 'http://localhost:5280'),
@@ -42,7 +42,9 @@ return [
         'de' => 'Deutsch',
         'es' => 'Español',
         'it' => 'Italiano',
+        'pt' => 'Português',   // Brazilian Portuguese (Brazil market)
         'ja' => '日本語',
+        'ar' => 'العربية',      // right-to-left (Localization::dir)
     ],
     // Theme new stores start with. Existing stores keep the theme they have.
     'default_theme' => env('LUMEE_DEFAULT_THEME', 'fresh'),

@@ -27,7 +27,7 @@
     .nl-inline .field { flex: 1; }
     .nl-done { font-size: 16px; color: var(--rose-gold-700); }
     .nl-error { color: #B42318; font-size: 13px; margin: 8px 0 0; }
-    .nl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    .nl-hp { position: absolute; inset-inline-start: -9999px; width: 1px; height: 1px; opacity: 0; }
     @media (max-width: 560px) { .nl-inline { flex-direction: column; } }
 </style>
 @endpush

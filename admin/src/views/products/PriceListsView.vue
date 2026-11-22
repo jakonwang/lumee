@@ -1,41 +1,49 @@
 <script setup lang="ts">
 /** Products › Wholesale: price lists for tagged customers (% off everything, fixed prices, minimum order). */
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   NButton, NCard, NDrawer, NDrawerContent, NEmpty, NForm, NFormItem, NInput, NInputNumber, NSkeleton, NSwitch, NTag,
   useDialog, useMessage,
+  NSelect,
 } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
 import { useAuth } from '@/stores/auth'
 import { t } from '@/i18n'
 
-interface List { id: number; name: string; customer_tag: string; percent_off: number; min_subtotal: string; enabled: boolean; fixed_prices: number; customers?: number }
+interface List { id: number; name: string; customer_tag: string; percent_off: number; min_subtotal: string; enabled: boolean; fixed_prices: number; customers?: number; market_id: number | null; currency: string }
 interface Price { variant_id: number; title: string | null; variant_title: string | null; sku: string | null; regular: string; price: number | string | null; min_qty: number; step: number; tiers: { min: number; price: number }[] }
 interface Variant { id: number; title: string; variant_title: string | null; sku: string | null; price: string }
 
 const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
-const currency = useAuth().currentStore?.currency ?? ''
+const storeCurrency = useAuth().currentStore?.currency ?? ''
 const lists = ref<List[] | null>(null)
+const markets = ref<{ id: number; name: string; currency: string }[]>([])
 async function load() { lists.value = (await http.get('/price-lists')).data.data }
-onMounted(load)
+onMounted(async () => {
+  load()
+  markets.value = (await http.get('/markets')).data.data
+})
 
 // ---- Editor ----
 const open = ref(false)
 const editingId = ref<number | null>(null)
-const form = reactive({ name: '', customer_tag: '', percent_off: 20, min_subtotal: 0, enabled: true })
+const form = reactive({ name: '', customer_tag: '', percent_off: 20, min_subtotal: 0, enabled: true, market_id: null as number | null })
+// A market's own list is priced in its currency; a general list in the store currency (converted inside markets)
+const currency = computed(() => (form.market_id ? markets.value.find((m) => m.id === form.market_id)?.currency : null) ?? storeCurrency)
+const marketName = (id: number | null) => (id ? markets.value.find((m) => m.id === id)?.name ?? '—' : null)
 const prices = ref<Price[]>([])
 const saving = ref(false)
 async function edit(l?: List) {
   editingId.value = l?.id ?? null
   if (l) {
     const { data } = await http.get(`/price-lists/${l.id}`)
-    Object.assign(form, { name: data.data.name, customer_tag: data.data.customer_tag, percent_off: data.data.percent_off, min_subtotal: Number(data.data.min_subtotal), enabled: data.data.enabled })
+    Object.assign(form, { name: data.data.name, customer_tag: data.data.customer_tag, percent_off: data.data.percent_off, min_subtotal: Number(data.data.min_subtotal), enabled: data.data.enabled, market_id: data.data.market_id ?? null })
     prices.value = data.data.prices.map((p: Price) => ({ ...p, price: p.price === null ? null : Number(p.price), tiers: p.tiers.map((x) => ({ min: x.min, price: Number(x.price) })) }))
   } else {
-    Object.assign(form, { name: t('批发客户'), customer_tag: 'wholesale', percent_off: 20, min_subtotal: 0, enabled: true })
+    Object.assign(form, { name: t('批发客户'), customer_tag: 'wholesale', percent_off: 20, min_subtotal: 0, enabled: true, market_id: null })
     prices.value = []
   }
   q.value = ''
@@ -81,7 +89,7 @@ function addPrice(v: Variant) {
   <div>
     <div class="page-head">
       <div>
-        <div class="eyebrow">Products</div>
+        <div class="eyebrow">B2B wholesale</div>
         <h1 class="page-title">{{ t('批发价') }}</h1>
         <p class="page-sub">{{ t('给打了指定标签的客户（例如「wholesale」）显示专属价格。客户登录后，商品页、购物车和结账都会用批发价；也可以要求最低起订金额。') }}</p>
       </div>
@@ -95,7 +103,7 @@ function addPrice(v: Variant) {
         <div class="l-head">
           <div>
             <div class="l-name">{{ l.name }} <NTag v-if="!l.enabled" size="tiny" :bordered="false">{{ t('已停用') }}</NTag></div>
-            <div class="muted">{{ t('标签「{0}」· {1} 位客户', [l.customer_tag, l.customers ?? 0]) }}
+            <div class="muted">{{ t('标签「{0}」· {1} 位客户', [l.customer_tag, l.customers ?? 0]) }}<template v-if="l.market_id"> · {{ marketName(l.market_id) }} · {{ l.currency }}</template>
               <a class="link" @click="router.push({ name: 'customers' })">{{ t('去给客户打标签') }}</a></div>
           </div>
           <div class="acts">
@@ -106,7 +114,7 @@ function addPrice(v: Variant) {
         <div class="facts">
           <span>{{ l.percent_off > 0 ? t('全部商品 {0}% off', [l.percent_off]) : t('不打折') }}</span>
           <span>{{ t('{0} 个商品单独定价', [l.fixed_prices]) }}</span>
-          <span>{{ Number(l.min_subtotal) > 0 ? t('最低起订 {0} {1}', [currency, l.min_subtotal]) : t('无起订金额') }}</span>
+          <span>{{ Number(l.min_subtotal) > 0 ? t('最低起订 {0} {1}', [l.currency, l.min_subtotal]) : t('无起订金额') }}</span>
         </div>
       </NCard>
     </div>
@@ -122,13 +130,17 @@ function addPrice(v: Variant) {
             <NFormItem :label="t('全部商品折扣')"><NInputNumber v-model:value="form.percent_off" :min="0" :max="90" style="width: 100%"><template #suffix>% off</template></NInputNumber></NFormItem>
             <NFormItem :label="t('最低起订金额（0 = 不限）')"><NInputNumber v-model:value="form.min_subtotal" :min="0" :precision="2" style="width: 100%"><template #prefix>{{ currency }}</template></NInputNumber></NFormItem>
           </div>
+          <NFormItem v-if="markets.length" :label="t('适用市场')">
+            <NSelect v-model:value="form.market_id" clearable :placeholder="t('所有市场（价格按汇率换算）')" :options="markets.map((m) => ({ label: `${m.name} · ${m.currency}`, value: m.id }))" />
+          </NFormItem>
+          <p v-if="form.market_id" class="muted small" style="margin: -8px 0 12px">{{ t('这个市场的批发客户只用这张价格表，价格直接按 {0} 填写，不换算。', [currency]) }}</p>
           <div class="switch-row"><span>{{ t('启用') }}</span><NSwitch v-model:value="form.enabled" /></div>
 
           <div class="sec">{{ t('单独定价、起订量和阶梯价') }}</div>
           <NInput v-model:value="q" :placeholder="t('搜索商品名称或 SKU')" clearable size="small" />
           <div v-if="results.length" class="results">
             <button v-for="v in results.slice(0, 8)" :key="v.id" type="button" class="result" @click="addPrice(v)">
-              <span>{{ v.title }}<span class="muted">{{ v.variant_title ? ` · ${v.variant_title}` : '' }}</span></span><span class="muted">{{ currency }} {{ v.price }}</span>
+              <span>{{ v.title }}<span class="muted">{{ v.variant_title ? ` · ${v.variant_title}` : '' }}</span></span><span class="muted">{{ storeCurrency }} {{ v.price }}</span>
             </button>
           </div>
           <div v-for="(p, i) in prices" :key="p.variant_id" class="price-block">

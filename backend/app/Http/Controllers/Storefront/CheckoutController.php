@@ -59,7 +59,9 @@ class CheckoutController extends Controller
             }
         }
 
-        $country = $request->old('country', CustomerSession::user()?->default_address['country'] ?? 'US');
+        // Default destination: the buyer's saved address, else the market's (first) country
+        $country = $request->old('country', CustomerSession::user()?->default_address['country']
+            ?? app(\App\Markets\MarketContext::class)->market()?->countries[0] ?? 'US');
         $cart->rememberContact(CustomerSession::user()?->email);
 
         return view($this->current()->themeView('checkout'), [
@@ -76,6 +78,10 @@ class CheckoutController extends Controller
             'giftCard' => $cart->giftCard(),
             'company' => app(\App\B2B\B2B::class)->company(),
             'taxExempt' => app(\App\B2B\B2B::class)->taxExempt(),
+            // Market: import duties on the goods (charged here, included, or paid on delivery) and tax-ID countries
+            'duties' => \App\Markets\MarketSettings::duties(max(0, $cart->subtotal() - (int) app(DiscountService::class)->discountsFor($cart, $discount)['amount'])),
+            'taxIdLabels' => \App\Support\TaxIds::REQUIRED,
+            'cod' => \App\Payments\CashOnDeliveryGateway::settings(),
         ]);
     }
 
@@ -166,12 +172,22 @@ class CheckoutController extends Controller
             'zip' => ['required', 'string', 'max:20'],
             'country' => ['required', Rule::in(array_keys(Countries::all()))],
             'phone' => ['nullable', 'string', 'max:40'],
+            'tax_id' => ['nullable', 'string', 'max:30'],
             'shipping_rate_id' => ['required', 'integer'],
             'payment_gateway' => ['required', Rule::in($this->gatewaysFor($this->carts()->current())->keys()->all())],
             'note' => ['nullable', 'string', 'max:1000'],
             'accepts_marketing' => ['nullable', 'boolean'],
             'po_number' => ['nullable', 'string', 'max:60'],
         ]);
+
+        // Some countries' customs need the buyer's tax ID (Brazil: CPF / CNPJ)
+        if ($label = \App\Support\TaxIds::label($data['country'])) {
+            if (! \App\Support\TaxIds::valid($data['country'], (string) ($data['tax_id'] ?? ''))) {
+                return back()->withInput()->withErrors(['tax_id' => __('Please enter a valid :label.', ['label' => $label])]);
+            }
+        } else {
+            unset($data['tax_id']);
+        }
 
         $cart = $this->carts()->current();
         if (! $cart || $cart->items->isEmpty()) {

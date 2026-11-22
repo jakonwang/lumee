@@ -163,7 +163,8 @@ class LeadAi
         ])->filter()->map(fn ($v, $k) => "$k: $v")->implode("\n");
     }
 
-    private function json(Store $store, string $prompt, array $schema, string $effort, int $maxTokens): array
+    /** Structured (JSON schema) answer from Claude with the store's key; also used by product collection. */
+    public function json(Store $store, string $prompt, array $schema, string $effort, int $maxTokens): array
     {
         $key = LeadSettings::anthropicKey($store);
         if (! $key) {

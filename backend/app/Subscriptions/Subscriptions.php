@@ -154,7 +154,15 @@ class Subscriptions
     /** Pending renewal order at the subscription price (stock is reserved only once paid). */
     private function buildOrder(CustomerSubscription $sub, Store $store): Order
     {
-        return DB::transaction(function () use ($sub, $store) {
+        // Started in a market: renew in that market's currency and prices
+        $origin = Order::withoutGlobalScope('store')->find($sub->origin_order_id);
+        $market = $origin?->market_id ? \App\Models\Market::withoutGlobalScope('store')->find($origin->market_id) : null;
+        $markets = app(\App\Markets\MarketContext::class);
+        if ($market && ($market->currency !== $sub->currency || $market->rate($store) === null)) {
+            $market = null;   // the market changed currency or lost its rate since: keep what the buyer signed up for
+        }
+
+        return $markets->within($market, fn () => DB::transaction(function () use ($sub, $store, $markets) {
             $variants = ProductVariant::with('product')->whereIn('id', array_column($sub->items, 'variant_id'))->lockForUpdate()->get()->keyBy('id');
             $lines = [];
             $subtotal = 0;
@@ -166,7 +174,7 @@ class Subscriptions
                 if ($v->inventory_quantity < $i['quantity']) {
                     throw new RuntimeException(__(':title is out of stock.', ['title' => $i['title']]));
                 }
-                $raw = (int) $v->getRawOriginal('price');
+                $raw = $markets->variantPrices((int) $v->id, (int) $v->getRawOriginal('price'), null)[0];   // no sales; market price inside a market
                 $unit = $sub->discount > 0 ? (int) round($raw * (100 - (float) $sub->discount) / 100) : $raw;
                 $lines[] = [$v, (int) $i['quantity'], $unit];
                 $subtotal += $unit * $i['quantity'];
@@ -185,6 +193,7 @@ class Subscriptions
                 'discount_total' => 0, 'tax_total' => $tax['amount'], 'taxes_included' => $tax['included'], 'tax_lines' => $tax['lines'] ?: null,
                 'total' => $total, 'shipping_address' => $a, 'shipping_method' => $sub->shipping_method,
                 'payment_gateway' => $sub->payment_gateway, 'financial_status' => 'pending', 'fulfillment_status' => 'unfulfilled',
+                'market_id' => $markets->market()?->id, 'exchange_rate' => $markets->rate(),
             ]);
             $order->forceFill(['source' => 'subscription', 'subscription_id' => $sub->id])->save();
             foreach ($lines as [$v, $qty, $unit]) {
@@ -198,7 +207,7 @@ class Subscriptions
             $order->log('placed', __('订阅自动续订（第 :p0 次）', ['p0' => $sub->orders_count + 1]));
 
             return $order->load('items');
-        });
+        }));
     }
 
     private function reserve(Order $order): void

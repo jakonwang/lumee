@@ -77,7 +77,7 @@ async function decline() {
 
 <template>
   <div>
-    <div class="eyebrow">Customers · B2B</div>
+    <div class="eyebrow">B2B wholesale</div>
     <h1 class="page-title">{{ t('询价单') }}</h1>
     <p class="page-sub">{{ t('批发客户在购物车里提交询价，你填好价格、运费和有效期后发给客户；客户接受后自动生成订单（有账期的公司按账期付款）。') }}</p>
 

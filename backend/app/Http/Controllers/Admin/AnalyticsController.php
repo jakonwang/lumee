@@ -46,10 +46,10 @@ class AnalyticsController extends Controller
         // ---- Sales -----------------------------------------------------------------------
         $orders = Order::where('created_at', '>=', $prevStart->utc())->where('created_at', '<=', $end->utc())
             ->where('financial_status', '!=', 'voided')->whereNull('cancelled_at')
-            ->get(['id', 'email', 'created_at', 'total', 'refunded_total', 'financial_status', 'discount_total', 'shipping_address']);
+            ->get(['id', 'email', 'created_at', 'total', 'refunded_total', 'exchange_rate', 'financial_status', 'discount_total', 'shipping_address']);
         [$cur, $prev] = $orders->partition(fn ($o) => $o->created_at->gte($start->utc()));
         $paid = fn (Collection $c) => $c->whereIn('financial_status', Order::PAID_STATUSES);
-        $net = fn (Collection $c) => (int) $c->sum(fn ($o) => $o->total - $o->refunded_total);
+        $net = fn (Collection $c) => (int) $c->sum(fn ($o) => $o->inStoreCurrency($o->total - $o->refunded_total));
         $metrics = fn (Collection $c) => [
             'revenue' => $net($paid($c)),
             'orders' => $c->count(),
@@ -78,14 +78,14 @@ class AnalyticsController extends Controller
             $i = $bucket(CarbonImmutable::parse($o->created_at));
             if (isset($series[$i])) {
                 $series[$i]['orders']++;
-                $series[$i]['revenue'] += in_array($o->financial_status, Order::PAID_STATUSES, true) ? $o->total - $o->refunded_total : 0;
+                $series[$i]['revenue'] += in_array($o->financial_status, Order::PAID_STATUSES, true) ? $o->inStoreCurrency($o->total - $o->refunded_total) : 0;
             }
         }
         foreach ($prev as $o) {
             $i = $prevBucket(CarbonImmutable::parse($o->created_at));
             if (isset($series[$i])) {
                 $series[$i]['prev_orders']++;
-                $series[$i]['prev_revenue'] += in_array($o->financial_status, Order::PAID_STATUSES, true) ? $o->total - $o->refunded_total : 0;
+                $series[$i]['prev_revenue'] += in_array($o->financial_status, Order::PAID_STATUSES, true) ? $o->inStoreCurrency($o->total - $o->refunded_total) : 0;
             }
         }
         foreach ($this->sessions($start, $end)->pluck('started_at') as $t) {
@@ -197,7 +197,7 @@ class AnalyticsController extends Controller
     private function breakdown(string $column, CarbonImmutable $from, CarbonImmutable $to, int $limit = 0): Collection
     {
         $q = $this->withPurchases($from, $to)
-            ->selectRaw("analytics_sessions.{$column} as k, COUNT(*) as sessions, COUNT(orders.id) as purchases, COALESCE(SUM(orders.total - orders.refunded_total), 0) as revenue")
+            ->selectRaw("analytics_sessions.{$column} as k, COUNT(*) as sessions, COUNT(orders.id) as purchases, COALESCE(SUM((orders.total - orders.refunded_total) / orders.exchange_rate), 0) as revenue")
             ->groupBy("analytics_sessions.{$column}")->orderByDesc('sessions');
         if (in_array($column, ['referrer_host', 'utm_campaign'], true)) {
             $q->whereNotNull("analytics_sessions.{$column}");
@@ -206,7 +206,7 @@ class AnalyticsController extends Controller
 
         return $q->get()->map(fn ($r) => [
             'key' => $r->k, 'sessions' => (int) $r->sessions, 'purchases' => (int) $r->purchases,
-            'revenue' => Money::format((int) $r->revenue),
+            'revenue' => Money::format((int) round((float) $r->revenue)),
             'conversion' => $r->sessions ? round($r->purchases / $r->sessions * 100, 2) : 0,
         ])->values();
     }
@@ -216,12 +216,12 @@ class AnalyticsController extends Controller
     {
         $visits = $this->sessions($from, $to)->selectRaw('country, COUNT(*) as n')->groupBy('country')->pluck('n', 'country');
         $sales = $paidOrders->groupBy(fn ($o) => $o->shipping_address['country'] ?? null);
-        $total = max(1, (int) $paidOrders->sum(fn ($o) => $o->total - $o->refunded_total));
+        $total = max(1, (int) $paidOrders->sum(fn ($o) => $o->inStoreCurrency($o->total - $o->refunded_total)));
         $codes = $visits->keys()->merge($sales->keys())->map(fn ($c) => $c ?: '')->unique();
 
         return $codes->map(function ($code) use ($visits, $sales, $total) {
             $orders = $sales->get($code, collect());
-            $revenue = (int) $orders->sum(fn ($o) => $o->total - $o->refunded_total);
+            $revenue = (int) $orders->sum(fn ($o) => $o->inStoreCurrency($o->total - $o->refunded_total));
 
             return [
                 'code' => $code ?: null,
@@ -239,9 +239,11 @@ class AnalyticsController extends Controller
     /** Best sellers plus most viewed: views, add-to-carts, units, sales. */
     private function products(Collection $paidIds, CarbonImmutable $from, CarbonImmutable $to): Collection
     {
+        // Orders from markets are in other currencies: revenue in the store currency via each order's rate
         $sales = $paidIds->isEmpty() ? collect() : DB::table('order_items')->whereIn('order_id', $paidIds)
-            ->groupBy('product_id', 'title')
-            ->selectRaw('product_id, title, SUM(quantity - refunded_quantity) as qty, SUM(total - price * refunded_quantity) as revenue, COUNT(DISTINCT order_id) as orders')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->groupBy('order_items.product_id', 'order_items.title')
+            ->selectRaw('order_items.product_id, order_items.title, SUM(order_items.quantity - order_items.refunded_quantity) as qty, SUM((order_items.total - order_items.price * order_items.refunded_quantity) / orders.exchange_rate) as revenue, COUNT(DISTINCT order_items.order_id) as orders')
             ->get();
         $stats = DB::table('analytics_product_stats')->where('analytics_product_stats.store_id', $this->storeId)
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
@@ -257,7 +259,7 @@ class AnalyticsController extends Controller
             $rows->put($key, [
                 'id' => $s->product_id, 'title' => $prev['title'] ?? $s->title,
                 'qty' => ($prev['qty'] ?? 0) + (int) $s->qty, 'orders' => ($prev['orders'] ?? 0) + (int) $s->orders,
-                'revenue' => ($prev['revenue'] ?? 0) + (int) $s->revenue,
+                'revenue' => ($prev['revenue'] ?? 0) + (int) round((float) $s->revenue),
             ]);
         }
         foreach ($stats as $id => $st) {
@@ -288,7 +290,7 @@ class AnalyticsController extends Controller
                 ->whereColumn('earlier.id', '<', 'orders.id')->where('earlier.financial_status', '!=', 'voided'))
             ->pluck('orders.id')->flip();
         [$returning, $first] = $paidOrders->partition(fn ($o) => $returningIds->has($o->id));
-        $sum = fn (Collection $c) => (int) $c->sum(fn ($o) => $o->total - $o->refunded_total);
+        $sum = fn (Collection $c) => (int) $c->sum(fn ($o) => $o->inStoreCurrency($o->total - $o->refunded_total));
 
         return [
             'new' => ['orders' => $first->count(), 'revenue' => Money::format($sum($first))],

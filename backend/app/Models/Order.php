@@ -25,8 +25,8 @@ class Order extends Model
 
     protected $fillable = [
         'gift_card_id', 'gift_card_total', 'source', 'subscription_id', 'company_id', 'po_number', 'payment_due_at',
-        'store_id', 'number', 'token', 'customer_id', 'email', 'currency', 'locale',
-        'subtotal', 'shipping_total', 'discount_code', 'discount_total', 'discount_lines', 'tax_total', 'taxes_included', 'tax_lines', 'total', 'refunded_total',
+        'store_id', 'number', 'token', 'customer_id', 'email', 'currency', 'locale', 'market_id', 'exchange_rate',
+        'subtotal', 'shipping_total', 'discount_code', 'discount_total', 'discount_lines', 'tax_total', 'duty_total', 'payment_fee', 'taxes_included', 'tax_lines', 'total', 'refunded_total',
         'financial_status', 'fulfillment_status', 'shipping_address', 'shipping_method',
         'payment_gateway', 'payment_reference', 'stripe_account', 'application_fee', 'dispute', 'tracking_company', 'tracking_number',
         'note', 'paid_at', 'fulfilled_at', 'review_requested_at', 'delivered_at', 'cancelled_at', 'cancel_reason',
@@ -41,10 +41,13 @@ class Order extends Model
             'shipping_total' => 'integer',
             'discount_total' => 'integer',
             'tax_total' => 'integer',
+            'duty_total' => 'integer',
+            'payment_fee' => 'integer',
             'taxes_included' => 'boolean',
             'tax_lines' => 'array',
             'total' => 'integer',
             'refunded_total' => 'integer',
+            'exchange_rate' => 'float',
             'paid_at' => 'datetime',
             'application_fee' => 'integer',
             'dispute' => 'array',
@@ -64,6 +67,19 @@ class Order extends Model
             'tracking_synced_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
+    }
+
+    /** An amount of this order (in its currency) in the store currency, for reports that add up orders from several markets. */
+    public function inStoreCurrency(int $minor): int
+    {
+        $rate = (float) ($this->exchange_rate ?: 1);
+
+        return $rate === 1.0 ? $minor : (int) round($minor / $rate);
+    }
+
+    public function market(): BelongsTo
+    {
+        return $this->belongsTo(Market::class);
     }
 
     public function items(): HasMany
@@ -152,7 +168,7 @@ class Order extends Model
             'payment_reference' => $reference ?? $this->payment_reference,
         ])->save();
 
-        $this->customer?->increment('total_spent', $this->total);
+        $this->customer?->increment('total_spent', $this->inStoreCurrency($this->total));   // store currency, also for market orders
         $this->log('paid', __('订单已付款'), $reference ? ['reference' => $reference] : []);
         app(\App\Billing\FeeLedger::class)->recordPaid($this);   // platform transaction fee (paid plans only)
 

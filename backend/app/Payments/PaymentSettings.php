@@ -35,15 +35,22 @@ final class PaymentSettings
         'bancontact' => ['Bancontact', ['EUR']],
         'alipay' => ['Alipay', ['AUD', 'CAD', 'CNY', 'EUR', 'GBP', 'HKD', 'JPY', 'NZD', 'SGD', 'USD']],
         'pix' => ['Pix', ['BRL']],
+        'boleto' => ['Boleto', ['BRL']],
+        'oxxo' => ['OXXO', ['MXN']],
+        'eps' => ['EPS', ['EUR']],
+        'p24' => ['Przelewy24', ['EUR', 'PLN']],
+        'grabpay' => ['GrabPay', ['MYR', 'SGD']],
+        'paynow' => ['PayNow', ['SGD']],
+        'promptpay' => ['PromptPay', ['THB']],
         'wechat_pay' => ['WeChat Pay', ['AUD', 'CAD', 'CHF', 'CNY', 'DKK', 'EUR', 'GBP', 'HKD', 'JPY', 'NOK', 'SEK', 'SGD', 'USD']],
     ];
 
     public function __construct(private Store $store) {}
 
     /** Stripe methods switched on for this store that work in its currency. @return string[] */
-    public function stripeMethods(): array
+    public function stripeMethods(?string $currency = null): array
     {
-        $currency = $this->store->currency;
+        $currency ??= $this->store->currency;   // pass the order's currency when there is an order
 
         return array_values(array_filter((array) ($this->all()['stripe']['methods'] ?? []),
             fn ($m) => isset(self::STRIPE_METHODS[$m]) && in_array($currency, self::STRIPE_METHODS[$m][1], true)));

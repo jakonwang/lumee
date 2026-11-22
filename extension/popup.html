@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Lumée Collector</title>
+  <style>
+    body { width: 320px; margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #18211c; background: #fff; }
+    header { padding: 12px 16px; border-bottom: 1px solid #e3e8e5; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    header button { border: 0; background: none; color: #1f7a4d; cursor: pointer; font-size: 13px; }
+    main { padding: 14px 16px 16px; display: grid; gap: 10px; }
+    section { display: grid; gap: 10px; }
+    label { display: grid; gap: 4px; font-size: 12px; color: #5b6660; }
+    input, select { font: inherit; padding: 7px 9px; border: 1px solid #d3dbd6; border-radius: 8px; color: #18211c; background: #fff; }
+    .primary { background: #1f7a4d; color: #fff; border: 0; border-radius: 8px; padding: 9px; font: inherit; font-weight: 600; cursor: pointer; }
+    .primary:disabled { opacity: .6; cursor: default; }
+    .muted { color: #5b6660; font-size: 12px; margin: 0; }
+    .msg { margin: 0; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: #eef6f1; }
+    .msg.err { background: #fdecea; color: #8a1c12; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header><span>Lumée 商品采集</span><button id="toggle" type="button">设置</button></header>
+  <main>
+    <section id="collect">
+      <p class="muted" id="page">当前页面：—</p>
+      <label>价格货币（页面没写明时使用）
+        <select id="currency">
+          <option>CNY</option><option>USD</option><option>EUR</option><option>GBP</option><option>MXN</option>
+          <option>BRL</option><option>IDR</option><option>THB</option><option>PHP</option><option>MYR</option>
+        </select>
+      </label>
+      <button id="go" class="primary" type="button">采集此页</button>
+    </section>
+    <section id="settings" hidden>
+      <p class="muted">在后台「商品 › 采集 › 浏览器插件」生成连接密钥，把后台地址和密钥填在这里。</p>
+      <label>后台地址<input id="api" placeholder="https://api.your-store.com" autocomplete="off"></label>
+      <label>连接密钥<input id="key" placeholder="lmc_…" autocomplete="off"></label>
+      <button id="save" class="primary" type="button">保存</button>
+    </section>
+    <p id="msg" class="msg" hidden></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

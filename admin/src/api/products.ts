@@ -35,6 +35,8 @@ export interface ProductDetail {
   taxable: boolean
   is_gift_card?: boolean
   b2b_only?: boolean
+  size_chart?: string | null
+  supplier_id?: number | null
   subscription?: { enabled: boolean; discount: number; intervals: string[]; only: boolean }
   preorder?: { enabled: boolean; ships_at: string | null; note: string | null; limit: number | null }
   digital?: boolean

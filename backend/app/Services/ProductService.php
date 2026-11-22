@@ -34,7 +34,10 @@ class ProductService
                 $data['tags'] = collect($data['tags'] ?? [])->map(fn ($t) => trim((string) $t))->filter()
                     ->unique(fn ($t) => mb_strtolower($t))->values()->all();
             }
-            $product->fill(Arr::only($data, ['title', 'description', 'status', 'product_type', 'vendor', 'tags', 'taxable', 'is_gift_card', 'b2b_only', 'digital']));
+            $product->fill(Arr::only($data, ['title', 'description', 'status', 'product_type', 'vendor', 'tags', 'taxable', 'is_gift_card', 'b2b_only', 'digital', 'size_chart']));
+            if (array_key_exists('supplier_id', $data)) {
+                $product->supplier_id = $data['supplier_id'] ? \App\Models\Supplier::whereKey($data['supplier_id'])->value('id') : null;   // this store's only
+            }
             if (array_key_exists('upsell_ids', $data)) {
                 $ids = array_values(array_unique(array_map('intval', (array) ($data['upsell_ids'] ?? []))));
                 $product->upsell_ids = Product::whereIn('id', $ids)->when($product->id, fn ($q) => $q->whereKeyNot($product->id))->pluck('id')->all() ?: null;   // store-scoped

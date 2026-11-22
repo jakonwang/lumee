@@ -198,6 +198,19 @@ $aurora = [
 ];
 
 /*
+| Blocks every theme shares (slideshow, flash sale, trust bar…, product / collection / cart page
+| blocks), page templates, the "style" settings group and regional style kits: config/theme_blocks.php.
+*/
+$blocks = require __DIR__.'/theme_blocks.php';
+foreach ($blocks['placement'] as $type => $on) {
+    $aurora['sections'][$type]['on'] = $on;
+}
+$aurora['sections'] += $blocks['sections'];
+$aurora['settings']['style'] = $blocks['style'];
+$aurora['templates'] = $blocks['templates'];
+$aurora['kits'] = $blocks['kits'];
+
+/*
 | Fresh — clean green & white, suits any kind of store.
 | "extends" => 'aurora': any template Fresh doesn't provide falls back to Aurora's
 | (ThemeContext::view). Fresh only overrides the layouts' styling.

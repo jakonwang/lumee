@@ -90,10 +90,12 @@ class CheckoutRecovery
 
         $locale = $cart->locale ?: Localization::storeDefault($store);
         app(\App\Promotions\Promotions::class)->enableFor($store);   // sale prices, as on the storefront
-        app(Localization::class)->within($store, $locale, function () use ($cart, $store, $s) {
+        // Started in a market: prices, currency and links of that market (if it is still live)
+        $market = $cart->market_id ? \App\Markets\MarketContext::live($store)->firstWhere('id', $cart->market_id) : null;
+        app(\App\Markets\MarketContext::class)->within($market, fn () => app(Localization::class)->within($store, $locale, function () use ($cart, $store, $s) {
             $cart = Cart::withoutGlobalScope('store')->with('items.variant.product', 'items.variant.image')->find($cart->id);
             Mail::to($cart->email)->send(new RecoveryMail($cart, $store, $s['discount_code']));
-        });
+        }));
 
         return true;
     }

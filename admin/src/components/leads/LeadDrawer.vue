@@ -25,7 +25,7 @@ const router = useRouter()
 
 const lead = ref<LeadDetail | null>(null)
 const tab = ref<'overview' | 'outreach' | 'timeline'>('overview')
-const busy = ref<'' | 'recheck' | 'analyze' | 'convert'>('')
+const busy = ref<'' | 'recheck' | 'analyze' | 'convert' | 'catalog'>('')
 interface Draft { language: string; subject: string; body: string; subject_zh: string; body_zh: string; ai: boolean }
 const draft = ref<Draft | null>(null)
 
@@ -48,6 +48,15 @@ async function act(kind: 'recheck' | 'analyze') {
     lead.value = (await http.post(`/leads/${lead.value!.id}/${kind}`)).data.data
     emit('changed')
     message.success(kind === 'analyze' ? t('AI 分析完成') : t('已重新读取官网'))
+  } catch (e) { message.error(errorMessage(e)) } finally { busy.value = '' }
+}
+/** A wholesale catalog link for this prospect (in the market of their country), copied to paste into the email. */
+const catalogUrl = ref('')
+async function catalog() {
+  busy.value = 'catalog'
+  try {
+    catalogUrl.value = (await http.post(`/leads/${lead.value!.id}/catalog`)).data.data.url
+    try { await navigator.clipboard.writeText(catalogUrl.value); message.success(t('批发目录链接已复制，可以贴进开发信')) } catch { message.success(t('批发目录链接已生成')) }
   } catch (e) { message.error(errorMessage(e)) } finally { busy.value = '' }
 }
 async function convert() {
@@ -191,10 +200,12 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
             <NButton size="small" quaternary :loading="busy === 'analyze'" @click="aiReady ? act('analyze') : emit('settings')">
               <template #icon><NIcon><SparklesOutline /></NIcon></template>{{ t('AI 分析') }}
             </NButton>
+            <NButton size="small" quaternary :loading="busy === 'catalog'" @click="catalog">{{ t('批发目录链接') }}</NButton>
             <NButton size="small" :loading="busy === 'convert'" @click="convert">
               <template #icon><NIcon><BusinessOutline /></NIcon></template>{{ lead.company_id ? t('查看公司') : t('转为 B2B 客户') }}
             </NButton>
           </div>
+          <div v-if="catalogUrl" class="catalog-link"><a :href="catalogUrl" target="_blank" rel="noopener">{{ catalogUrl }}</a></div>
         </div>
 
         <NTabs v-model:value="tab" type="line" class="tabs" pane-style="padding: 0">
@@ -393,4 +404,6 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
 .dot.status, .dot.reminder { background: var(--brand-300); }
 .ev-title { font-size: 13.5px; }
 .ev-body { margin-top: 4px; font-size: 13px; color: #3D4943; white-space: pre-wrap; line-height: 1.6; max-height: 160px; overflow: auto; }
+.catalog-link { font-size: 12px; margin-top: 6px; word-break: break-all; }
+.catalog-link a { color: var(--brand-700); }
 </style>

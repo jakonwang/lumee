@@ -12,6 +12,9 @@ import { useAuth } from '@/stores/auth'
 import ImageManager from '@/components/ImageManager.vue'
 import SeoCard from '@/components/SeoCard.vue'
 import InventoryHistory from '@/components/InventoryHistory.vue'
+import ProductMarketsCard from '@/components/ProductMarketsCard.vue'
+import ProductContentCard from '@/components/ProductContentCard.vue'
+import ProductExperimentCard from '@/components/ProductExperimentCard.vue'
 import {
   type ProductDetail, type ProductImage, type ProductOption, type Variant,
   combinations, comboKey,
@@ -42,6 +45,8 @@ const form = reactive({
   taxable: true,
   is_gift_card: false,
   b2b_only: false,
+  size_chart: null as string | null,
+  supplier_id: null as number | null,
   subscription: { enabled: false, discount: 10, intervals: ['month:1'] as string[], only: false },
   digital: false,
   preorder: { enabled: false, ships_at: null as string | null, note: '' as string | null, limit: null as number | null },
@@ -210,6 +215,8 @@ async function load() {
       taxable: p.taxable ?? true,
       is_gift_card: !!p.is_gift_card,
       b2b_only: !!p.b2b_only,
+      size_chart: p.size_chart ?? null,
+      supplier_id: p.supplier_id ?? null,
       subscription: p.subscription?.intervals?.length ? { ...p.subscription } : { enabled: false, discount: 10, intervals: ['month:1'], only: false },
       digital: !!p.digital,
       preorder: p.preorder ? { ...p.preorder, note: p.preorder.note ?? '' } : { enabled: false, ships_at: null, note: '', limit: null },
@@ -301,8 +308,10 @@ onBeforeRouteLeave(() => {
   return window.confirm(t('有未保存的修改，确定离开吗？'))
 })
 
+const supplierOptions = ref<{ value: number; label: string }[]>([])
 onMounted(() => {
   listCollections(true).then((list) => { collectionOptions.value = list.map((c) => ({ value: c.id, label: c.title })) })
+  http.get('/suppliers').then(({ data }) => { supplierOptions.value = data.data.map((s: { id: number; name: string }) => ({ value: s.id, label: s.name })) }).catch(() => {})
   load()
   if (!id.value) setTimeout(() => { dirty.value = false })
 })
@@ -443,6 +452,12 @@ onMounted(() => {
 
         <InventoryHistory v-if="id" :key="id" :product-id="id" :variants="variants" @adjusted="onAdjusted" />
 
+        <ProductMarketsCard v-if="id && auth.can('products')" :key="`markets-${id}`" :product-id="id" :store-currency="auth.currentStore?.currency ?? ''" />
+
+        <ProductContentCard v-if="id" :key="`content-${id}`" :product-id="id" :dirty="dirty" @changed="load" />
+
+        <ProductExperimentCard v-if="id" :key="`ab-${id}`" :product-id="id" :images="images" :title="form.title" :dirty="dirty" @changed="load" />
+
         <SeoCard v-model="seo" :path="`/products/${form.handle || '…'}`" :fallback-title="form.title" :fallback-description="form.description" />
       </div>
 
@@ -462,6 +477,16 @@ onMounted(() => {
           <p v-if="!collectionOptions.length" class="hint" style="margin-top: 8px">
             {{ t('还没有分类，') }}<RouterLink :to="{ name: 'collection-new' }">{{ t('去新建') }}</RouterLink>
           </p>
+        </NCard>
+        <NCard :title="t('供应商')" size="small">
+          <NSelect v-model:value="form.supplier_id" clearable filterable :placeholder="t('未指定')" :options="supplierOptions" />
+          <p class="hint" style="margin-top: 8px">{{ t('补货建议会按供应商分组，方便直接生成采购单。') }} <RouterLink :to="{ name: 'purchasing' }">{{ t('管理供应商') }}</RouterLink></p>
+        </NCard>
+        <NCard :title="t('尺码换算')" size="small">
+          <NSelect v-model:value="form.size_chart" clearable :placeholder="t('不需要换算')" :options="[
+            { label: t('女鞋（美码）'), value: 'shoes_women' }, { label: t('男鞋（美码）'), value: 'shoes_men' },
+            { label: t('戒指（美码）'), value: 'rings' }, { label: t('服装（XS–XXL）'), value: 'clothing' }]" />
+          <p class="hint" style="margin-top: 8px">{{ t('规格里的尺码用美码填写。各市场的商品页会显示当地尺码（欧码、英码、巴西码、墨西哥码）和尺码对照表。') }}</p>
         </NCard>
         <NCard :title="t('批发 / B2B')" size="small">
           <NCheckbox v-model:checked="form.b2b_only">{{ t('只对批发客户显示') }}</NCheckbox>

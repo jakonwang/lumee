@@ -68,6 +68,7 @@ class PriceListController extends Controller
             'percent_off' => ['required', 'numeric', 'min:0', 'max:90'],
             'min_subtotal' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'enabled' => ['boolean'],
+            'market_id' => ['nullable', 'integer'],   // a market's own list: prices in its currency
             'prices' => ['array', 'max:2000'],
             'prices.*.variant_id' => ['required', 'integer'],
             'prices.*.price' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
@@ -83,6 +84,7 @@ class PriceListController extends Controller
             'percent_off' => $data['percent_off'],
             'min_subtotal' => Money::toMinor($data['min_subtotal'] ?? 0),
             'enabled' => $data['enabled'] ?? true,
+            'market_id' => ! empty($data['market_id']) ? (\App\Models\Market::find($data['market_id'])?->id ?? throw ValidationException::withMessages(['market_id' => __('市场不存在')])) : null,
         ])->save();
 
         if (array_key_exists('prices', $data)) {
@@ -109,6 +111,7 @@ class PriceListController extends Controller
         return [
             'id' => $l->id, 'name' => $l->name, 'customer_tag' => $l->customer_tag, 'percent_off' => $l->percent_off,
             'min_subtotal' => Money::format($l->min_subtotal), 'enabled' => $l->enabled,
+            'market_id' => $l->market_id, 'currency' => $l->market_id ? \App\Models\Market::find($l->market_id)?->currency : app(\App\Tenancy\CurrentStore::class)->getOrFail()->baseCurrency(),
             'fixed_prices' => $l->prices_count ?? $l->prices()->count(), 'updated_at' => $l->updated_at,
         ];
     }

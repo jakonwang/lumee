@@ -4,7 +4,7 @@
 
 @php($a = $order->shipping_address)
 @php($labels = ['subtotal' => __('小计'), 'shipping' => __('运费'), 'free' => __('免运费'), 'total' => __('合计'), 'qty' => __('数量'), 'discount' => __('折扣'), 'promotion' => __('活动'), 'refunded' => __('已退款')])
-@php($gateways = ['stripe' => __('Stripe 信用卡'), 'manual' => __('银行转账'), 'paypal' => 'PayPal', 'airwallex' => 'Airwallex', 'razorpay' => 'Razorpay', 'test' => __('测试支付')])
+@php($gateways = ['stripe' => __('Stripe 信用卡'), 'manual' => __('银行转账'), 'paypal' => 'PayPal', 'airwallex' => 'Airwallex', 'razorpay' => 'Razorpay', 'cod' => __('货到付款'), 'test' => __('测试支付')])
 
 @section('preheader'){{ __(':p0 下单了 :p1', ['p0' => trim(($a['first_name'] ?? '').' '.($a['last_name'] ?? '')), 'p1' => $money($order->total)]) }}@endsection
 

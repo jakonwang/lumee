@@ -23,7 +23,7 @@
     .coll-tile:hover .coll-img img { transform: scale(1.04); }
     .coll-name { font-family: var(--font-display); font-size: 22px; margin-top: 12px; }
     .coll-name span { color: var(--rose-gold-500); transition: margin .2s; }
-    .coll-tile:hover .coll-name span { margin-left: 6px; }
+    .coll-tile:hover .coll-name span { margin-inline-start: 6px; }
     @media (max-width: 760px) { .coll-grid, .coll-grid.cols-3, .coll-grid.cols-4 { grid-template-columns: repeat(2, 1fr); gap: 14px; } .coll-name { font-size: 18px; } }
 </style>
 @endpush

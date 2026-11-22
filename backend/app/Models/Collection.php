@@ -64,12 +64,35 @@ class Collection extends Model
             'newest' => $query->orderByDesc('products.id'),
             'title' => $query->orderBy('products.title'),
             'price_asc', 'price_desc' => $query
-                ->addSelect(['min_price' => ProductVariant::withoutGlobalScope('store')
-                    ->selectRaw('MIN(price)')->whereColumn('product_variants.product_id', 'products.id')])
-                ->orderBy('min_price', $sort === 'price_asc' ? 'asc' : 'desc'),
+                ->addSelect(['min_price' => self::minPriceQuery()])
+                ->orderBy('min_price', $sort === 'price_asc' ? 'asc' : 'desc')->orderBy('products.id'),
             // manual: pivot position (only meaningful on a collection relation)
             default => method_exists($query, 'orderByPivot') ? $query->orderByPivot('position')->orderBy('products.id') : $query->orderByDesc('products.id'),
         };
+    }
+
+    /**
+     * A product's lowest price as a sort key. Inside a market, a variant with a fixed market
+     * price counts that price converted back to the store currency (market prices are otherwise
+     * the store price times one factor, so ordering on store-currency values is the same order
+     * shoppers see — up to price-ending ties).
+     */
+    private static function minPriceQuery()
+    {
+        $variants = ProductVariant::withoutGlobalScope('store')->whereColumn('product_variants.product_id', 'products.id');
+        $markets = app(\App\Markets\MarketContext::class);
+        if (! $markets->active()) {
+            return $variants->selectRaw('MIN(price)');
+        }
+        $factor = $markets->rate() * (1 + $markets->market()->price_adjustment / 100);
+        if ($factor <= 0) {
+            return $variants->selectRaw('MIN(price)');
+        }
+
+        return $variants
+            ->leftJoin('market_prices', fn ($j) => $j->on('market_prices.variant_id', '=', 'product_variants.id')
+                ->where('market_prices.market_id', $markets->market()->id))
+            ->selectRaw('MIN(COALESCE(market_prices.price / ?, product_variants.price))', [$factor]);
     }
 
     /** Image to show: the collection's own, else its first product's. */

@@ -156,7 +156,7 @@ onMounted(() => {
   <div>
     <div class="page-head">
       <div>
-        <div class="eyebrow">Customers · B2B</div>
+        <div class="eyebrow">B2B wholesale</div>
         <h1 class="page-title">{{ t('公司') }}</h1>
         <p class="page-sub">{{ t('批发 / B2B 客户：一家公司可以有多个采购人和收货地点，可以设置账期付款和免税；公司标签决定适用的批发价格表。') }}</p>
       </div>

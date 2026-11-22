@@ -54,6 +54,7 @@ class PageController extends Controller
             'title' => $data['title'],
             'handle' => $this->uniqueHandle($data['handle'] ?? $data['title']),
             'body' => $data['body'] ?? '',
+            'layout' => $data['layout'] ?? 'text',
             'seo' => Seo::clean($data['seo'] ?? null),
             'published' => $data['published'] ?? true,
         ]);
@@ -65,7 +66,7 @@ class PageController extends Controller
     {
         $page = Page::findOrFail($id);
         $data = $this->validated($request, false);
-        $page->fill(collect($data)->only('title', 'body', 'published')->all());
+        $page->fill(collect($data)->only('title', 'body', 'layout', 'published')->all());
         if (array_key_exists('handle', $data)) {
             $page->handle = $this->uniqueHandle($data['handle'] ?: $page->title, $page->id);
         }
@@ -99,6 +100,7 @@ class PageController extends Controller
             'handle' => ['sometimes', 'nullable', 'string', 'max:255'],
             'body' => ['sometimes', 'nullable', 'string', 'max:100000'],
             'published' => ['sometimes', 'boolean'],
+            'layout' => ['sometimes', \Illuminate\Validation\Rule::in(Page::LAYOUTS)],
             'seo' => ['sometimes', 'nullable', 'array'],
             'seo.title' => ['nullable', 'string', 'max:70'],
             'seo.description' => ['nullable', 'string', 'max:320'],
@@ -112,6 +114,7 @@ class PageController extends Controller
             'title' => $p->title,
             'handle' => $p->handle,
             'published' => $p->published,
+            'layout' => $p->layout ?? 'text',
             'updated_at' => $p->updated_at,
         ];
     }
@@ -121,6 +124,8 @@ class PageController extends Controller
         return [
             ...$this->summary($p),
             'body' => (string) $p->body,
+            // Blocks pages are designed in the theme editor (live theme, this page's template)
+            'theme_id' => $p->layout === 'blocks' ? app(\App\Themes\ThemeService::class)->ensureLive(app(\App\Tenancy\CurrentStore::class)->getOrFail())->id : null,
             'seo' => ['title' => $p->seo['title'] ?? null, 'description' => $p->seo['description'] ?? null],
         ];
     }

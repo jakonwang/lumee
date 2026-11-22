@@ -13,6 +13,7 @@ export interface OrderItem {
   refunded_quantity: number
   total: string
   preorder?: boolean
+  gift?: { email: string; name?: string; message?: string } | null
 }
 
 export interface OrderEvent {
@@ -51,6 +52,8 @@ export interface Order {
   discount_lines: { type: 'code' | 'promotion'; id: number | null; title: string; amount: string }[]
   tax_total: string
   gift_card_total?: string
+  duty_total?: string
+  payment_fee?: string
   payment_due_at?: string | null
   po_number?: string | null
   company?: { id: number; name: string } | null
@@ -175,6 +178,7 @@ export const gatewayLabel: Record<string, string> = {
   paypal: 'PayPal',
   airwallex: 'Airwallex',
   manual: t('银行转账'),
+  cod: t('货到付款'),
   test: t('测试支付'),
 }
 

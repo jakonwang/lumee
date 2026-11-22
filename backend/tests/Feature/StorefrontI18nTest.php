@@ -64,10 +64,10 @@ class StorefrontI18nTest extends TestCase
     {
         $this->as()->getJson('/api/admin/settings/languages')->assertOk()
             ->assertJsonPath('default', 'en')->assertJsonPath('published', ['fr', 'ja'])
-            ->assertJsonCount(6, 'languages');
+            ->assertJsonCount(8, 'languages');   // incl. Arabic (right to left)
 
         $home = $this->front()->get(self::A.'/fr')->assertOk();
-        $home->assertSee('<html lang="fr">', false)
+        $home->assertSee('<html lang="fr" dir="ltr">', false)
             ->assertSee('href="/fr/collections/all"', false)                  // internal links keep the language
             ->assertSee('hreflang="ja"', false)->assertSee('hreflang="x-default"', false)
             ->assertSee('>Français</a>', false)->assertSee('Rechercher');
@@ -75,15 +75,15 @@ class StorefrontI18nTest extends TestCase
 
         $this->front()->get(self::A.'/de')->assertNotFound();                 // not published
         $this->front()->get(self::A.'/en/collections/all')->assertRedirect('/collections/all');   // default language has no prefix
-        $this->front()->get(self::A.'/collections/all')->assertOk()->assertSee('<html lang="en">', false);
+        $this->front()->get(self::A.'/collections/all')->assertOk()->assertSee('<html lang="en" dir="ltr">', false);
         $this->front()->get(self::A.'/ja/collections/all')->assertOk()->assertSee('並べ替え');
 
         $this->front()->get(self::A.'/sitemap.xml')->assertSee('/fr/products/silk-scarf</loc>', false)->assertSee('/ja/products/silk-scarf</loc>', false);
 
         // Changing the default language: French at "/", English moves under /en
         $this->as()->putJson('/api/admin/settings/languages', ['default' => 'fr', 'published' => ['en']])->assertOk()->assertJsonPath('published', ['en']);
-        $this->front()->get(self::A.'/')->assertSee('<html lang="fr">', false);
-        $this->front()->get(self::A.'/en')->assertOk()->assertSee('<html lang="en">', false);
+        $this->front()->get(self::A.'/')->assertSee('<html lang="fr" dir="ltr">', false);
+        $this->front()->get(self::A.'/en')->assertOk()->assertSee('<html lang="en" dir="ltr">', false);
     }
 
     public function test_content_translations_show_on_the_storefront_with_fallback(): void

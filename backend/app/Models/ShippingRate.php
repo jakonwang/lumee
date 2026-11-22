@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ShippingRate extends Model
 {
-    use BelongsToStore, \App\I18n\HasTranslations;
+    use BelongsToStore, \App\Markets\InMarketCurrency, \App\I18n\HasTranslations {
+        \App\I18n\HasTranslations::getAttribute as translatedAttribute;
+    }
 
     public const TRANSLATION_TYPE = 'shipping';
 
@@ -28,6 +30,17 @@ class ShippingRate extends Model
             'min_weight' => 'integer',
             'max_weight' => 'integer',
         ];
+    }
+
+    /** Names translated per language; price and subtotal bounds in the market currency inside a market. */
+    public function getAttribute($key)
+    {
+        return $this->inMarketCurrency($key, $this->translatedAttribute($key));
+    }
+
+    protected function marketMoneyAttributes(): array
+    {
+        return ['price', 'min_subtotal', 'max_subtotal'];
     }
 
     public function zone(): BelongsTo

@@ -13,6 +13,7 @@ const links = computed(() => [
   { name: 'settings-taxes', label: t('税费'), perm: 'settings' },
   { name: 'settings-risk', label: t('风控'), perm: 'settings' },
   { name: 'settings-languages', label: t('语言'), perm: 'settings' },
+  { name: 'settings-markets', label: t('市场'), perm: 'settings' },
   { name: 'settings-currencies', label: t('多币种'), perm: 'settings' },
   { name: 'settings-domains', label: t('域名'), perm: 'settings' },
   { name: 'settings-notifications', label: t('邮件通知'), perm: 'settings' },

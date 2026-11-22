@@ -60,6 +60,9 @@ class ResolveStorefrontStore
         $preview = $previewTheme !== null;
         $request->attributes->set('theme_preview', $preview);
         $request->attributes->set('theme_preview_theme', $previewTheme);
+        // An AI design proposal (not saved yet), shown in the editor's before / after preview
+        $proposal = $preview ? \App\Themes\AiDesigner::proposal($store, $request->query('_proposal')) : null;
+        $request->attributes->set('theme_proposal', $proposal && 'r'.$proposal['row_id'] === $previewTheme ? $proposal : null);
 
         $response = $next($request);
 

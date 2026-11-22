@@ -128,7 +128,7 @@
     .rv-rating-input input:checked ~ label, .rv-rating-input label:hover, .rv-rating-input label:hover ~ label { color: var(--rose-gold-500); }
     .rv-rating-input input:focus-visible + label { outline: 2px solid var(--rose-gold-500); outline-offset: 2px; border-radius: 4px; }
     .rv-error { color: #B42318; font-size: 13px; margin: -6px 0 0; }
-    .rv-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    .rv-hp { position: absolute; inset-inline-start: -9999px; width: 1px; height: 1px; opacity: 0; }
     .rv-list { list-style: none; padding: 0; margin: 0; display: grid; }
     .rv-item { padding: 20px 0; border-top: 1px solid var(--border); }
     .rv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px; }

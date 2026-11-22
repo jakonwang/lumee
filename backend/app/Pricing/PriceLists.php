@@ -109,6 +109,12 @@ class PriceLists
     {
         $tags = array_map(fn ($t) => mb_strtolower(trim((string) $t)), $tags);
         $lists = PriceList::where('enabled', true)->get()->filter(fn ($l) => in_array(mb_strtolower($l->customer_tag), $tags, true));
+        // Markets: a list made for this market (prices in its currency) beats the general lists (converted);
+        // outside a market only the general lists apply
+        $markets = app(\App\Markets\MarketContext::class);
+        $own = $markets->active() ? $lists->where('market_id', $markets->market()->id) : collect();
+        $lists = $own->isNotEmpty() ? $own : $lists->whereNull('market_id');
+        $convert = $markets->active() && $own->isEmpty();
         if ($lists->isEmpty()) {
             return null;
         }
@@ -130,12 +136,17 @@ class PriceLists
             usort($list, fn ($a, $b) => $a['min'] <=> $b['min']);
             $tiers[$v] = $list;
         }
+        // General lists are in the store currency: inside a market they are converted
+        if ($convert) {
+            $fixed = array_map(fn ($p) => $markets->money($p), $fixed);
+            $tiers = array_map(fn ($list) => array_map(fn ($t) => ['min' => $t['min'], 'price' => $markets->money($t['price'])], $list), $tiers);
+        }
 
         return [
             'name' => $lists->first()->name,
             'percent' => (float) $lists->max('percent_off'),
             'fixed' => $fixed, 'min' => $min, 'step' => $step, 'tiers' => $tiers,
-            'min_subtotal' => (int) $lists->min('min_subtotal'),
+            'min_subtotal' => $convert ? (int) $markets->money((int) $lists->min('min_subtotal')) : (int) $lists->min('min_subtotal'),
         ];
     }
 }
