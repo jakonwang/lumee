@@ -15,7 +15,7 @@ const navPages = [...sections, appsSection].flatMap((s) => s.pages.flatMap((p) =
 const settingsPages = settingsGroups.flatMap((g) => g.pages.map((p) => p.name))
 
 /** Pages that are deliberately outside the menu (sign-in flows, the platform operators' area, the developer portal…). */
-const OUTSIDE = new Set(['invite', 'oauth-authorize', 'login', 'settings', 'stores', 'partner-apps', 'partner-themes', 'partner-payouts'])
+const OUTSIDE = new Set(['invite', 'oauth-authorize', 'login', 'unavailable', 'settings', 'stores', 'partner-apps', 'partner-themes', 'partner-payouts'])
 
 describe('navigation', () => {
   it('every menu entry is a real page', () => {

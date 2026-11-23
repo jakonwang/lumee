@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Webhooks;
 
 use App\Billing\StripeBilling;
+use App\Console\Commands\ExpireUnpaidOrders;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Store;
@@ -64,7 +65,7 @@ class StripeWebhookController extends Controller
 
         // Cards pay at once (completed + paid). Vouchers and bank slips (OXXO, boleto…) complete unpaid: the buyer pays
         // later in a shop or bank, then Stripe sends async_payment_succeeded — or async_payment_failed when it expires.
-        $sessionEvents = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed'];
+        $sessionEvents = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed', 'checkout.session.expired'];
         if (in_array($event['type'], $sessionEvents, true)) {
             $session = $event['data']['object'];
             // No store context on the webhook host, so look up by id across stores — then
@@ -78,6 +79,10 @@ class StripeWebhookController extends Controller
                 $order->markPaid($session['payment_intent'] ?? $session['id']);
             } elseif ($event['type'] === 'checkout.session.completed' && ! $order->isPaid() && ! $order->events()->where('type', 'payment_pending')->exists()) {   // Stripe may retry
                 $order->log('payment_pending', __('买家选择了到店或银行付款（OXXO、boleto 等），付款后订单会自动标记为已付款'));
+            } elseif ($event['type'] === 'checkout.session.expired' && ! $order->isPaid() && ! $order->isCancelled()) {
+                // The buyer never paid and the payment link has expired: release the stock now
+                app(CurrentStore::class)->set(Store::findOrFail($order->store_id));
+                ExpireUnpaidOrders::cancel(app(OrderService::class), $order);
             } elseif ($event['type'] === 'checkout.session.async_payment_failed' && ! $order->isPaid() && ! $order->isCancelled()) {
                 // The voucher expired unpaid: free the stock
                 app(CurrentStore::class)->set(Store::findOrFail($order->store_id));

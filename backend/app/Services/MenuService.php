@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\I18n\Localization;
+use App\Markets\MarketContext;
 use App\Models\Collection;
 use App\Models\Menu;
 use App\Models\Page;
@@ -84,7 +86,9 @@ class MenuService
                     if ($type === 'page') {
                         $pageIds ??= Page::pluck('id')->all();
                     }
-                    $allowed = match ($type) { 'collection' => $collectionIds, 'product' => $productIds, 'page' => $pageIds };
+                    $allowed = match ($type) {
+                        'collection' => $collectionIds, 'product' => $productIds, 'page' => $pageIds
+                    };
                     if (! in_array($id, $allowed, true)) {
                         continue;   // unknown or another store's record
                     }
@@ -119,10 +123,21 @@ class MenuService
      */
     public function resolve(string $handle): array
     {
+        // Once per request and language: a child theme's layout extends its parent's, so both are composed
+        $key = $handle.'|'.app()->getLocale().'|'.app(MarketContext::class)->market()?->id;
+
+        return $this->resolved[$key] ??= $this->build($handle);
+    }
+
+    /** @var array<string, array> */
+    private array $resolved = [];
+
+    private function build(string $handle): array
+    {
         // Read-only on the storefront: fall back to defaults without creating a row
         $menu = Menu::where('handle', $handle)->first();
         $items = $menu?->items ?? $this->defaults($handle);
-        $l10n = app(\App\I18n\Localization::class);
+        $l10n = app(Localization::class);
         $ids = ['collection' => [], 'product' => [], 'page' => []];
         $walk = function ($list) use (&$walk, &$ids) {
             foreach ($list as $i) {

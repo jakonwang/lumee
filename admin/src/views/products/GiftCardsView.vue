@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** Products › Gift cards: issue (code shown once), email to the recipient, see usage, adjust or disable. */
 import { h, onMounted, reactive, ref, watch } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { useRouter } from 'vue-router'
 import {
   NAlert, NButton, NCard, NCheckbox, NDataTable, NDatePicker, NDrawer, NDrawerContent, NForm, NFormItem, NInput, NInputNumber,
@@ -131,7 +132,12 @@ const kindLabel: Record<string, string> = { issued: t('发放'), spent: t('消�
         <NInput v-model:value="q" :placeholder="t('代码后 4 位或邮箱')" clearable size="small" style="width: 200px" />
       </div>
       <NDataTable remote :columns="columns" :data="rows" :loading="loading" :bordered="false" :pagination="pagination" :scroll-x="840"
-        :row-props="(r: Card) => ({ style: 'cursor:pointer', onClick: () => openDetail(r) })" @update:page="(p: number) => { pagination.page = p; load() }" />
+        :row-props="(r: Card) => ({ style: 'cursor:pointer', onClick: () => openDetail(r) })" @update:page="(p: number) => { pagination.page = p; load() }" >
+        <template #empty>
+          <EmptyState v-if="q || status !== 'all'" :title="t('没有符合条件的礼品卡')" :text="t('换个关键词，或切换到「全部」看看。')" />
+          <EmptyState v-else :title="t('还没有礼品卡')" :text="t('可以在这里手动发放礼品卡，或者上架礼品卡商品让买家购买，付款后系统会自动发卡。')" />
+        </template>
+      </NDataTable>
     </NCard>
 
     <!-- Create -->

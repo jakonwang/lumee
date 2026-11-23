@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { NCard, NDataTable, NTag, NSwitch, NSelect, NInput, NButton, NAlert, useMessage, type DataTableColumns } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
 import { useAuth } from '@/stores/auth'
@@ -133,7 +134,11 @@ onMounted(() => load())
         :pagination="pagination"
         :scroll-x="860"
         @update:page="load"
-      />
+      >
+        <template #empty>
+          <EmptyState :title="t('没有弃单')" :text="t('买家填写了邮箱但没有完成付款时，会出现在这里。开启挽回邮件后，系统会自动提醒他们回来完成购买。')" />
+        </template>
+      </NDataTable>
     </NCard>
   </div>
 </template>

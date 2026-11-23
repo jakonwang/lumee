@@ -79,7 +79,10 @@
         .btn-block { display: block; width: 100%; text-align: center; }
         .btn-ghost { background: none; color: var(--rose-gold-700); border: 1px solid var(--rose-gold-300); }
         .header-right { display: flex; align-items: center; gap: 28px; }
-        .bag { position: relative; display: flex; color: var(--ink); }
+        .bag { position: relative; display: flex; color: var(--ink); padding: 6px; margin: -6px; }   /* 34×34 tap area */
+        .visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+        .footer-links a { display: inline-block; padding-block: 6px; }
+        .logo { padding-block: 4px; }
         .bag:hover { color: var(--rose-gold-500); }
         .bag-count { position: absolute; top: -6px; right: -9px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--rose-gold-500); color: var(--on-primary); font-size: 11px; display: flex; align-items: center; justify-content: center; }
         .flash { margin-top: 20px; padding: 12px 16px; border-radius: 10px; background: var(--rose-gold-50); border: 1px solid var(--border); color: var(--rose-gold-700); font-size: 14px; }
@@ -297,7 +300,7 @@
                     <noscript><button type="submit">{{ __('Change') }}</button></noscript>
                 </form>
             @endif
-            <div class="rule">— {{ mb_strtoupper($store->name) }} —</div>
+            <div class="rule" aria-hidden="true">— {{ mb_strtoupper($store->name) }} —</div>
             <div>&copy; {{ date('Y') }} {{ $store->name }}@if ($theme->setting('footer.show_powered_by')) · {{ __('Powered by Lumée') }} @endif</div>
         </div>
     </footer>

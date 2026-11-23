@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref, watch } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { RouterLink } from 'vue-router'
 import {
   NCard, NDataTable, NTag, NTabs, NTab, NInput, NSelect, NButton, NModal, NSwitch, NRadioGroup, NRadio, NSpace, NUpload, NAlert,
@@ -241,7 +242,13 @@ onMounted(() => load())
         :pagination="pagination"
         :scroll-x="980"
         @update:page="load"
-      />
+      >
+        <template #empty>
+          <EmptyState v-if="!q && tab === 'pending'" :title="t('没有待审核的评论')" :text="t('新评论都处理完了。')" />
+          <EmptyState v-else-if="q || tab !== 'all'" :title="t('没有符合条件的评论')" :text="t('换个关键词，或切换到「全部」看看。')" />
+          <EmptyState v-else :title="t('还没有评论')" :text="t('买家收货后会收到评价邀请，评论提交后出现在这里等你审核。也可以用 CSV 导入其他平台的评论。')" />
+        </template>
+      </NDataTable>
     </NCard>
 
     <NModal :show="!!replying" preset="card" :title="t('回复评论')" style="max-width: 560px" @update:show="(v: boolean) => { if (!v) replying = null }">

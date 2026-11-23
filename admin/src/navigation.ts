@@ -38,7 +38,7 @@ export const sections: NavSection[] = [
       { name: 'orders', label: t('全部订单') },
       { name: 'abandoned-checkouts', label: t('弃单'), keywords: '未完成结账 挽回 abandoned checkout recovery' },
       { name: 'returns', label: t('退货'), keywords: '退款 售后 refund return' },
-      { name: 'subscriptions', label: t('订阅') },
+      { name: 'subscriptions', label: t('订阅订单'), keywords: '订阅 续订 subscriptions recurring' },
     ],
   },
   {

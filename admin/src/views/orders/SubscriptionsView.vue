@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** Orders › Subscriptions: subscribe-and-save customers, renewals, and actions (skip, pause, renew now, cancel). */
 import { h, onMounted, ref, watch } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { useRouter } from 'vue-router'
 import { NAlert, NButton, NCard, NDataTable, NDrawer, NDrawerContent, NInput, NTabs, NTab, NTag, useDialog, useMessage, type DataTableColumns } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
@@ -93,7 +94,12 @@ function confirmCancel() {
         <NInput v-model:value="q" :placeholder="t('搜索邮箱')" clearable size="small" style="width: 200px" />
       </div>
       <NDataTable remote :columns="columns" :data="rows" :loading="loading" :bordered="false" :pagination="pagination" :scroll-x="820"
-        :row-props="(r: Sub) => ({ style: 'cursor:pointer', onClick: () => openDetail(r) })" @update:page="(p: number) => { pagination.page = p; load() }" />
+        :row-props="(r: Sub) => ({ style: 'cursor:pointer', onClick: () => openDetail(r) })" @update:page="(p: number) => { pagination.page = p; load() }" >
+        <template #empty>
+          <EmptyState v-if="q || status !== 'all'" :title="t('没有符合条件的订阅')" :text="t('换个关键词，或切换到其他状态看看。')" />
+          <EmptyState v-else :title="t('还没有订阅')" :text="t('给商品开启「订阅购买」后，买家按周期自动续订的订单会出现在这里。')" />
+        </template>
+      </NDataTable>
     </NCard>
 
     <NDrawer :show="!!detail" :width="460" @update:show="(v: boolean) => !v && (detail = null)">

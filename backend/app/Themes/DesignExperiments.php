@@ -9,6 +9,7 @@ use App\Models\Market;
 use App\Models\Store;
 use App\Models\StoreTheme;
 use App\Models\ThemeSchedule;
+use App\Tenancy\CurrentStore;
 use App\Testing\Experiments;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -62,7 +63,8 @@ class DesignExperiments
     /** For a new analytics session: the running test of the live design on this site and the visitor's arm. */
     public function assignment(int $storeId, string $visitor): array
     {
-        $row = $this->themes->liveRow(Store::find($storeId));
+        $current = app(CurrentStore::class)->get();
+        $row = $this->themes->liveRow($current?->id === $storeId ? $current : Store::find($storeId));
         $market = app(MarketContext::class)->market();
         $e = $row ? $this->running($row->id, $market?->id) : null;
 

@@ -92,6 +92,7 @@ class OrderMail extends Mailable
             'payment_received' => __('Payment received for order :number', ['number' => $n]),
             'shipping_confirmation' => __('Your order :number is on its way', ['number' => $n]),
             'pickup_ready' => __('Your order :number is ready for pickup', ['number' => $n]),
+            'payment_reminder' => __('Your order :number is waiting for payment', ['number' => $n]),
             'order_cancelled' => __('Order :number has been cancelled', ['number' => $n]),
             'refund_notification' => __('Refund issued for order :number', ['number' => $n]),
             'delivery_confirmation' => __('Your order :number has been delivered', ['number' => $n]),

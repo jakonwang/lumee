@@ -674,5 +674,13 @@
     "Your question": "Votre question",
     "Send": "Envoyer",
     "Sorry, I can’t answer right now. Please try again in a moment.": "Désolé, je ne peux pas répondre pour le moment. Réessayez dans un instant.",
-    "The shopping assistant is not available right now.": "L’assistant shopping n’est pas disponible pour le moment."
+    "The shopping assistant is not available right now.": "L’assistant shopping n’est pas disponible pour le moment.",
+    "If you already paid, this page will update shortly. If you left the payment page, you can finish paying now — your items are reserved for 24 hours.": "Si vous avez déjà payé, cette page se mettra à jour sous peu. Si vous avez quitté la page de paiement, vous pouvez finaliser le paiement maintenant — vos articles sont réservés pendant 24 heures.",
+    "Complete payment": "Finaliser le paiement",
+    "Your order :number is waiting for payment": "Votre commande :number attend votre paiement",
+    "Your items are reserved — finish paying to complete your order.": "Vos articles sont réservés — finalisez le paiement pour valider votre commande.",
+    "Your order is waiting for payment": "Votre commande attend votre paiement",
+    "It looks like the payment wasn’t finished. We’re holding your items for you — complete your payment within 24 hours of ordering to keep them.": "Il semble que le paiement n’ait pas été finalisé. Nous gardons vos articles de côté — finalisez votre paiement dans les 24 heures suivant la commande pour les conserver.",
+    "Already paid? Then you can ignore this email — your confirmation is on its way.": "Déjà payé ? Ignorez simplement cet e-mail — votre confirmation arrive.",
+    "We didn't receive payment in time, so the order has been cancelled and the items released.": "Nous n’avons pas reçu le paiement à temps : la commande a été annulée et les articles remis en vente."
 }

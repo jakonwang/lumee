@@ -10,6 +10,7 @@
             @case('customer') {{ __("As requested, we've cancelled your order.") }} @break
             @case('inventory') {{ __("We're sorry — some items in your order are no longer available, so we've had to cancel it.") }} @break
             @case('declined') {{ __("Your payment couldn't be completed, so the order has been cancelled.") }} @break
+            @case('unpaid') {{ __("We didn't receive payment in time, so the order has been cancelled and the items released.") }} @break
             @default {{ __("We've cancelled your order.") }}
         @endswitch
     </p>

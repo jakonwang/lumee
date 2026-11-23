@@ -136,7 +136,7 @@ class ThemeContext
             '--surface-muted' => Color::mix($bg, $p, 0.07),
             '--border' => Color::mix($bg, $p, 0.2),
             '--ink' => $text,
-            '--ink-muted' => Color::mix($text, $bg, 0.42),
+            '--ink-muted' => Color::readable(Color::mix($text, $bg, 0.42), $bg, 4.6),   // secondary text, still readable
             '--gem-blush' => $accent,
             '--gradient-metal' => 'linear-gradient(180deg, '.Color::mix($p, $white, 0.15).' 0%, '.Color::mix($p, $black, 0.06).' 100%)',
             '--on-primary' => Color::luminance($p) > 0.45 ? $text : '#FFFFFF',

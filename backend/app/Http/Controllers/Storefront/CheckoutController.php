@@ -2,23 +2,44 @@
 
 namespace App\Http\Controllers\Storefront;
 
-use App\Http\Controllers\Controller;
-use App\Models\Cart;
-use App\Models\Order;
+use App\Analytics\Visits;
+use App\B2B\B2B;
+use App\Console\Commands\ExpireUnpaidOrders;
 use App\Customers\CustomerSession;
+use App\Http\Controllers\Controller;
+use App\Markets\MarketContext;
+use App\Markets\MarketSettings;
+use App\Models\Cart;
+use App\Models\CustomerSubscription;
+use App\Models\Order;
+use App\Models\ReturnRequest;
+use App\Payments\AirwallexGateway;
+use App\Payments\CashOnDeliveryGateway;
 use App\Payments\GatewayRegistry;
 use App\Payments\PaymentSettings;
-use App\Support\Money;
-use Illuminate\Http\JsonResponse;
+use App\Payments\PayPalGateway;
+use App\Payments\RazorpayGateway;
+use App\Pricing\PriceLists;
+use App\Returns\Returns;
+use App\Risk\RiskAnalyzer;
 use App\Services\CartService;
 use App\Services\CheckoutService;
 use App\Services\DiscountService;
+use App\Services\StripeTax;
+use App\Services\TaxService;
 use App\Support\Countries;
+use App\Support\Money;
+use App\Support\TaxIds;
 use App\Tenancy\CurrentStore;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class CheckoutController extends Controller
@@ -45,14 +66,14 @@ class CheckoutController extends Controller
         if (! $cart || $cart->items->isEmpty()) {
             return redirect('/cart');
         }
-        app(\App\Analytics\Visits::class)->checkout();
+        app(Visits::class)->checkout();
 
         // A code applied earlier may have expired or hit its limit since — drop it and explain why
         $discount = $cart->discount();
         if ($cart->discount_code) {
             try {
                 app(DiscountService::class)->assertUsable($discount, $cart->subtotal(), null, $this->current()->getOrFail()->currency);
-            } catch (\Illuminate\Validation\ValidationException $e) {
+            } catch (ValidationException $e) {
                 $cart->update(['discount_code' => null]);
 
                 return redirect('/cart')->withErrors(['discount_code' => $e->getMessage()]);
@@ -61,7 +82,7 @@ class CheckoutController extends Controller
 
         // Default destination: the buyer's saved address, else the market's (first) country
         $country = $request->old('country', CustomerSession::user()?->default_address['country']
-            ?? app(\App\Markets\MarketContext::class)->market()?->countries[0] ?? 'US');
+            ?? app(MarketContext::class)->market()?->countries[0] ?? 'US');
         $cart->rememberContact(CustomerSession::user()?->email);
 
         return view($this->current()->themeView('checkout'), [
@@ -76,20 +97,20 @@ class CheckoutController extends Controller
             'countries' => Countries::all(),
             'country' => $country,
             'giftCard' => $cart->giftCard(),
-            'company' => app(\App\B2B\B2B::class)->company(),
-            'taxExempt' => app(\App\B2B\B2B::class)->taxExempt(),
+            'company' => app(B2B::class)->company(),
+            'taxExempt' => app(B2B::class)->taxExempt(),
             // Market: import duties on the goods (charged here, included, or paid on delivery) and tax-ID countries
-            'duties' => \App\Markets\MarketSettings::duties(max(0, $cart->subtotal() - (int) app(DiscountService::class)->discountsFor($cart, $discount)['amount'])),
-            'taxIdLabels' => \App\Support\TaxIds::REQUIRED,
-            'cod' => \App\Payments\CashOnDeliveryGateway::settings(),
+            'duties' => MarketSettings::duties(max(0, $cart->subtotal() - (int) app(DiscountService::class)->discountsFor($cart, $discount)['amount'])),
+            'taxIdLabels' => TaxIds::REQUIRED,
+            'cod' => CashOnDeliveryGateway::settings(),
         ]);
     }
 
     /** Bags with a subscription can only use methods that can charge again later (saved card) or manual payment. */
-    private function gatewaysFor(?Cart $cart): \Illuminate\Support\Collection
+    private function gatewaysFor(?Cart $cart): Collection
     {
         $all = $this->gateways->available();
-        if (app(\App\B2B\B2B::class)->termsDays() > 0 && ! ($cart && $cart->hasSubscription())) {
+        if (app(B2B::class)->termsDays() > 0 && ! ($cart && $cart->hasSubscription())) {
             $all = collect(['terms' => $this->gateways->all()->get('terms')])->merge($all);   // pay on account first
         }
 
@@ -120,21 +141,21 @@ class CheckoutController extends Controller
      * Tax for the checkout summary: rate + whether it's included + the taxable item amount, so the
      * page can recompute it in the browser when the shipping method changes (same math as the order).
      */
-    private function taxFor(\App\Models\Cart $cart, string $country, ?string $province, array $address = []): array
+    private function taxFor(Cart $cart, string $country, ?string $province, array $address = []): array
     {
         $store = $this->current()->getOrFail();
-        $tax = app(\App\Services\TaxService::class);
+        $tax = app(TaxService::class);
         $settings = $tax->settings($store);
-        $rate = app(\App\B2B\B2B::class)->taxExempt() ? null : $tax->rateFor($country, $province);
+        $rate = app(B2B::class)->taxExempt() ? null : $tax->rateFor($country, $province);
         $subtotal = $cart->subtotal();
         $off = app(DiscountService::class)->discountsFor($cart, $cart->discount())['amount'];
         $taxable = $cart->items->sum(fn ($i) => $i->variant->product->taxable ? $i->lineTotal() : 0);
 
         // Stripe Tax (US): an effective rate for this address, applied to items + shipping in the browser
-        if ($settings['stripe_tax'] && ! $settings['included'] && $country === 'US' && ! app(\App\B2B\B2B::class)->taxExempt() && ! empty($address['zip'])) {
-            $items = \App\Services\TaxService::taxableAfterDiscount($subtotal, (int) $taxable, $off);
+        if ($settings['stripe_tax'] && ! $settings['included'] && $country === 'US' && ! app(B2B::class)->taxExempt() && ! empty($address['zip'])) {
+            $items = TaxService::taxableAfterDiscount($subtotal, (int) $taxable, $off);
             $shipping = (int) ($this->ratesFor($cart, $country)->first()?->price ?? 0);
-            $st = app(\App\Services\StripeTax::class)->calculate($store, $items, $shipping, [...$address, 'province' => $province]);
+            $st = app(StripeTax::class)->calculate($store, $items, $shipping, [...$address, 'province' => $province]);
             if ($st) {
                 return ['rate' => $st['rate'], 'name' => 'Sales tax', 'included' => false, 'shipping' => true, 'taxable_items' => $items];
             }
@@ -145,12 +166,12 @@ class CheckoutController extends Controller
             'name' => $rate?->name,
             'included' => (bool) $settings['included'],
             'shipping' => (bool) $settings['shipping'],
-            'taxable_items' => \App\Services\TaxService::taxableAfterDiscount($subtotal, (int) $taxable, $off),
+            'taxable_items' => TaxService::taxableAfterDiscount($subtotal, (int) $taxable, $off),
         ];
     }
 
     /** Rates on the discounted amount and cart weight (matches CheckoutService::placeOrder). */
-    private function ratesFor(\App\Models\Cart $cart, string $country): \Illuminate\Support\Collection
+    private function ratesFor(Cart $cart, string $country): Collection
     {
         $off = app(DiscountService::class)->discountsFor($cart, $cart->discount())['amount'];
 
@@ -181,8 +202,8 @@ class CheckoutController extends Controller
         ]);
 
         // Some countries' customs need the buyer's tax ID (Brazil: CPF / CNPJ)
-        if ($label = \App\Support\TaxIds::label($data['country'])) {
-            if (! \App\Support\TaxIds::valid($data['country'], (string) ($data['tax_id'] ?? ''))) {
+        if ($label = TaxIds::label($data['country'])) {
+            if (! TaxIds::valid($data['country'], (string) ($data['tax_id'] ?? ''))) {
                 return back()->withInput()->withErrors(['tax_id' => __('Please enter a valid :label.', ['label' => $label])]);
             }
         } else {
@@ -195,22 +216,22 @@ class CheckoutController extends Controller
         }
 
         foreach ($cart->items as $item) {
-            if ($error = app(\App\Pricing\PriceLists::class)->quantityError($item->variant_id, (int) $item->quantity)) {
+            if ($error = app(PriceLists::class)->quantityError($item->variant_id, (int) $item->quantity)) {
                 return redirect('/cart')->withErrors(['cart' => $item->variant->product->title.': '.$error]);
             }
         }
-        $min = app(\App\Pricing\PriceLists::class)->minimum();
+        $min = app(PriceLists::class)->minimum();
         if ($min > 0 && $cart->subtotal() < $min) {
             return redirect('/cart')->withErrors(['cart' => __('Wholesale orders need a subtotal of at least :amount.', ['amount' => Money::display($min, $this->current()->getOrFail()->currency)])]);
         }
 
-        if (app(\App\Risk\RiskAnalyzer::class)->blocked($this->current()->id(), $data['email'], $request->ip())) {
+        if (app(RiskAnalyzer::class)->blocked($this->current()->id(), $data['email'], $request->ip())) {
             return back()->withInput()->withErrors(['email' => __('We couldn’t process this order. Please contact the store for help.')]);
         }
 
         $cart->rememberContact($data['email']);
         $order = $this->checkout->placeOrder($this->current()->getOrFail(), $cart, $data);
-        app(\App\Analytics\Visits::class)->order($order);
+        app(Visits::class)->order($order);
         if ($cart->recovery_sent_at) {
             $order->forceFill(['recovered' => true])->save();
             $order->log('recovered', __('买家通过弃单挽回邮件完成了购买'));
@@ -259,13 +280,13 @@ class CheckoutController extends Controller
         if (! $cart || $cart->items()->doesntExist()) {
             return redirect('/cart');
         }
-        \Illuminate\Support\Facades\Cookie::queue(CartService::COOKIE, $cart->token, 60 * 24 * 30);
+        Cookie::queue(CartService::COOKIE, $cart->token, 60 * 24 * 30);
 
         return redirect('/checkout');
     }
 
     /** Hands the buyer over to Airwallex's hosted payment page. */
-    public function airwallexHandoff(string $token, \App\Payments\AirwallexGateway $airwallex): View|RedirectResponse
+    public function airwallexHandoff(string $token, AirwallexGateway $airwallex): View|RedirectResponse
     {
         $order = Order::where('token', $token)->firstOrFail();
         if ($order->payment_gateway !== 'airwallex' || $order->isPaid()) {
@@ -280,10 +301,10 @@ class CheckoutController extends Controller
     }
 
     /** Back from Airwallex: check the intent and confirm the order. */
-    public function airwallexReturn(Request $request, \App\Payments\AirwallexGateway $airwallex): RedirectResponse
+    public function airwallexReturn(Request $request, AirwallexGateway $airwallex): RedirectResponse
     {
         $token = (string) $request->query('order');
-        $order = \Illuminate\Support\Str::isUuid($token) ? Order::where('token', $token)->first() : null;
+        $order = Str::isUuid($token) ? Order::where('token', $token)->first() : null;
         abort_unless($order, 404);
         try {
             $paid = $airwallex->confirm($order);
@@ -297,13 +318,13 @@ class CheckoutController extends Controller
     }
 
     /** Back from Razorpay's payment page: check the signature, then confirm with the API. */
-    public function razorpayReturn(Request $request, \App\Payments\RazorpayGateway $razorpay): RedirectResponse
+    public function razorpayReturn(Request $request, RazorpayGateway $razorpay): RedirectResponse
     {
         $token = (string) $request->query('order');
-        $order = \Illuminate\Support\Str::isUuid($token) ? Order::where('token', $token)->first() : null;
+        $order = Str::isUuid($token) ? Order::where('token', $token)->first() : null;
         abort_unless($order, 404);
         $paid = false;
-        if ($order->payment_gateway === 'razorpay' && \App\Payments\RazorpayGateway::validSignature($request->query())
+        if ($order->payment_gateway === 'razorpay' && RazorpayGateway::validSignature($request->query())
             && $request->query('razorpay_payment_link_id') === $order->payment_reference) {
             try {
                 $paid = $razorpay->confirm($order);
@@ -318,10 +339,10 @@ class CheckoutController extends Controller
     }
 
     /** PayPal sends the buyer back here after approving; capture right away. */
-    public function paypalReturn(Request $request, \App\Payments\PayPalGateway $paypal): RedirectResponse
+    public function paypalReturn(Request $request, PayPalGateway $paypal): RedirectResponse
     {
         $token = (string) $request->query('order');
-        $order = \Illuminate\Support\Str::isUuid($token) ? Order::where('token', $token)->first() : null;
+        $order = Str::isUuid($token) ? Order::where('token', $token)->first() : null;
         if (! $order) {
             abort(404);
         }
@@ -337,20 +358,44 @@ class CheckoutController extends Controller
             : redirect("/orders/{$order->token}")->with('error', __('We could not confirm your PayPal payment yet. If you were charged, this page will update shortly.'));
     }
 
+    /** The buyer left the payment page (or starting it failed): take them back to pay this order. */
+    public function pay(string $token): RedirectResponse
+    {
+        $order = Order::with('items')->where('token', $token)->firstOrFail();
+        if (! self::canPayAgain($order)) {
+            return redirect("/orders/{$order->token}");
+        }
+        try {
+            $redirect = $this->gateways->get($order->payment_gateway)->start($order, $this->current()->getOrFail()->storefrontUrl());
+        } catch (RuntimeException $e) {
+            return redirect("/orders/{$order->token}")->with('error', $e->getMessage());
+        }
+
+        return $redirect ? redirect()->away($redirect) : redirect("/orders/{$order->token}");
+    }
+
+    /** An online payment that hasn't happened yet and can still be started (not a voucher waiting to be paid in a shop). */
+    public static function canPayAgain(Order $order): bool
+    {
+        return ! $order->isPaid() && ! $order->isCancelled() && $order->total > 0
+            && in_array($order->payment_gateway, ExpireUnpaidOrders::ONLINE, true)
+            && ! $order->events()->where('type', 'payment_pending')->exists();
+    }
+
     public function order(string $token): View
     {
         $order = Order::with('items')->where('token', $token)->firstOrFail();
         $paymentInstructions = PaymentSettings::for($this->current()->getOrFail())->instructions();
-        $returns = app(\App\Returns\Returns::class);
+        $returns = app(Returns::class);
         $returnInfo = [
             'blocker' => $returns->blocker($order),
             'returnable' => $returns->returnable($order),
-            'requests' => \App\Models\ReturnRequest::where('order_id', $order->id)->latest('id')->get(),
-            'reasons' => \App\Models\ReturnRequest::REASONS,
-            'window' => \App\Returns\Returns::settings($this->current()->getOrFail())['window_days'],
+            'requests' => ReturnRequest::where('order_id', $order->id)->latest('id')->get(),
+            'reasons' => ReturnRequest::REASONS,
+            'window' => Returns::settings($this->current()->getOrFail())['window_days'],
         ];
 
-        $subscriptions = \App\Models\CustomerSubscription::where(fn ($q) => $q->where('origin_order_id', $order->id)->orWhere('id', $order->subscription_id))->get();
+        $subscriptions = CustomerSubscription::where(fn ($q) => $q->where('origin_order_id', $order->id)->orWhere('id', $order->subscription_id))->get();
 
         return view($this->current()->themeView('order'), compact('order', 'paymentInstructions', 'returnInfo', 'subscriptions'));
     }

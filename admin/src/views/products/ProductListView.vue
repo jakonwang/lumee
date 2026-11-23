@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { h, onMounted, ref, watch } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { useRouter } from 'vue-router'
 import { NButton, NDataTable, NTag, NCard, NInput, NSpace, useMessage, type DataTableColumns } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
@@ -144,7 +145,15 @@ onMounted(load)
         :scroll-x="700"
         :row-props="(r: Product) => ({ style: 'cursor:pointer', onClick: (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.n-data-table-td--selection')) router.push({ name: 'product-edit', params: { id: r.id } }) } })"
         @update:page="(p: number) => { pagination.page = p; load() }"
-      />
+      >
+        <template #empty>
+          <EmptyState v-if="q" :title="t('没有符合条件的商品')" :text="t('换个关键词，或清空搜索看看全部商品。')" />
+          <EmptyState v-else :title="t('添加第一个商品')" :text="t('手动添加、从 CSV 导入，或用「选品与采购 › 采集」从其他平台一键导入。')">
+            <NButton type="primary" @click="router.push({ name: 'product-new' })">{{ t('添加商品') }}</NButton>
+            <NButton @click="importOpen = true">{{ t('导入') }}</NButton>
+          </EmptyState>
+        </template>
+      </NDataTable>
     </NCard>
 
     <ProductImportModal v-model:show="importOpen" @done="load" />

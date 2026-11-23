@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
-import { NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NIcon, NButton, NDropdown, NAvatar } from 'naive-ui'
-import { OpenOutline, SwapVerticalOutline } from '@vicons/ionicons5'
+import { NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NIcon, NButton, NDropdown, NAvatar, NDrawer, NDrawerContent } from 'naive-ui'
+import { OpenOutline, SwapVerticalOutline, MenuOutline } from '@vicons/ionicons5'
 import SidebarNav from '@/components/SidebarNav.vue'
 import SectionTabs from '@/components/SectionTabs.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
@@ -26,6 +26,15 @@ const storeOptions = computed(() => [
   { key: 'create', label: t('新建店铺') },
 ])
 const createOpen = ref(false)
+
+// Phones and small tablets: the sidebar becomes a slide-out menu opened from the header
+const narrowQuery = window.matchMedia('(max-width: 899px)')
+const narrow = ref(narrowQuery.matches)
+const onNarrow = (e: MediaQueryListEvent) => { narrow.value = e.matches; if (!e.matches) menuOpen.value = false }
+narrowQuery.addEventListener('change', onNarrow)
+onBeforeUnmount(() => narrowQuery.removeEventListener('change', onNarrow))
+const menuOpen = ref(false)
+watch(() => route.fullPath, () => { menuOpen.value = false })
 function onStoreMenu(key: number | string) {
   if (key === 'overview') { router.push({ name: 'stores' }); return }
   if (key === 'create') { createOpen.value = true; return }
@@ -76,7 +85,7 @@ async function onUser(key: string) {
 
 <template>
   <NLayout has-sider class="shell">
-    <NLayoutSider bordered :width="236" class="sider" content-style="padding: 14px 12px 16px; display:flex; flex-direction:column; height:100%;">
+    <NLayoutSider v-if="!narrow" bordered :width="236" class="sider" content-style="padding: 14px 12px 16px; display:flex; flex-direction:column; height:100%;">
       <!-- Store switcher doubles as the brand row -->
       <NDropdown v-if="auth.currentStore" trigger="click" :options="storeOptions" @select="onStoreMenu">
         <button type="button" class="store switchable" :aria-label="t('切换店铺')">
@@ -90,9 +99,30 @@ async function onUser(key: string) {
       </NDropdown>
       <SidebarNav />
     </NLayoutSider>
+    <NDrawer v-model:show="menuOpen" placement="left" :width="264" :auto-focus="false">
+      <NDrawerContent body-content-style="padding: 14px 12px 16px; display:flex; flex-direction:column; height:100%; background:#FAFBFA;">
+      <!-- Store switcher doubles as the brand row -->
+        <NDropdown v-if="auth.currentStore" trigger="click" :options="storeOptions" @select="onStoreMenu">
+          <button type="button" class="store switchable" :aria-label="t('切换店铺')">
+            <span class="store-mark">{{ auth.currentStore.name.slice(0, 1).toUpperCase() }}</span>
+            <span class="store-text">
+              <span class="store-name">{{ auth.currentStore.name }}</span>
+              <span class="store-sub">Lumée Commerce</span>
+            </span>
+            <NIcon size="14" class="chev"><SwapVerticalOutline /></NIcon>
+          </button>
+        </NDropdown>
+        <SidebarNav />
+      </NDrawerContent>
+    </NDrawer>
     <NLayout>
       <NLayoutHeader bordered class="header">
-        <div class="crumb">{{ route.meta.title }}</div>
+        <div class="header-left">
+          <NButton v-if="narrow" quaternary circle :aria-label="t('打开菜单')" :aria-expanded="menuOpen" @click="menuOpen = true">
+            <template #icon><NIcon size="20"><MenuOutline /></NIcon></template>
+          </NButton>
+          <div class="crumb">{{ route.meta.title }}</div>
+        </div>
         <div class="header-right">
           <CommandPalette />
           <a v-if="auth.currentStore" :href="auth.currentStore.storefront_url" target="_blank">
@@ -104,12 +134,12 @@ async function onUser(key: string) {
           <NDropdown :options="userOptions" @select="onUser">
             <div class="user">
               <NAvatar round size="small" color="#DDF4E9" style="color:#0A7350">{{ auth.user?.name?.[0] ?? 'L' }}</NAvatar>
-              <span>{{ auth.user?.name }}</span>
+              <span class="user-name">{{ auth.user?.name }}</span>
             </div>
           </NDropdown>
         </div>
       </NLayoutHeader>
-      <NLayoutContent :content-style="route.meta.fullBleed ? 'padding: 0' : 'padding: 32px 40px;'" class="content">
+      <NLayoutContent :content-style="route.meta.fullBleed ? 'padding: 0' : (narrow ? 'padding: 20px 16px;' : 'padding: 32px 40px;')" class="content">
         <div v-if="banner && !route.meta.fullBleed" class="billing-bar" :class="banner.tone">
           <span>{{ banner.text }}</span>
           <RouterLink :to="{ name: 'settings-billing' }">{{ banner.action }} →</RouterLink>
@@ -153,4 +183,15 @@ async function onUser(key: string) {
 .header-right { display: flex; align-items: center; gap: 16px; }
 .header-right a { text-decoration: none; }
 .user { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+.header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.crumb { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 899px) {
+  .header { padding: 0 12px; }
+  .header-right { gap: 8px; }
+  .user-name, .header-right a :deep(.n-button__content) { display: none; }
+  .header-right a :deep(.n-button__icon) { margin: 0; }
+}
+@media (max-width: 520px) {
+  .crumb { display: none; }
+}
 </style>

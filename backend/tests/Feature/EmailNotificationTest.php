@@ -168,6 +168,8 @@ class EmailNotificationTest extends TestCase
         $this->assertStringContainsString('Amethyst Butterfly Necklace', $html);
         $this->assertStringContainsString('Shop A', $html);
 
+        $this->as($this->a)->get('/api/admin/notifications/payment_reminder/preview')->assertOk()
+            ->assertSee('Your order is waiting for payment')->assertSee('Complete payment');
         $this->as($this->a)->get('/api/admin/notifications/nope/preview')->assertNotFound();
 
         $this->as($this->a)->postJson('/api/admin/notifications/shipping_confirmation/test')->assertOk();

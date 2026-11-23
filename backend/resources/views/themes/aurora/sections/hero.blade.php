@@ -7,7 +7,8 @@
     @endif
     <div class="wrap hero-inner">
         @if ($s['eyebrow'])<div class="eyebrow">{{ $s['eyebrow'] }}</div>@endif
-        <h1 class="display">{{ $s['heading'] ?: $store->name }}</h1>
+        @php($tag = ! isset($blocks) || ($blocks[0]['id'] ?? null) === ($section['id'] ?? null) ? 'h1' : 'h2')
+        <{{ $tag }} class="display">{{ $s['heading'] ?: $store->name }}</{{ $tag }}>
         @if ($s['text'])<p>{{ $s['text'] }}</p>@endif
         @if ($s['button_label'])
             <a class="btn" href="{{ $s['button_link'] ?: '#shop' }}">{{ $s['button_label'] }}</a>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** Settings › Activity log: who changed what in this store (sign-ins, edits, refunds, exports…). */
 import { computed, h, onMounted, ref, watch } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { NCard, NDataTable, NSelect, type DataTableColumns } from 'naive-ui'
 import { http } from '@/api/http'
 import { formatDate } from '@/api/orders'
@@ -57,7 +58,11 @@ onMounted(load)
         <NSelect v-model:value="area" :options="areas" :placeholder="t('全部类型')" clearable size="small" style="width: 160px" />
       </div>
       <NDataTable remote :columns="columns" :data="rows" :loading="loading" :bordered="false" :pagination="pagination" :scroll-x="720"
-        @update:page="(p: number) => { pagination.page = p; load() }" />
+        @update:page="(p: number) => { pagination.page = p; load() }" >
+        <template #empty>
+          <EmptyState :title="t('还没有操作记录')" :text="t('员工在后台修改商品、订单、设置或导出数据时，会记录在这里。')" />
+        </template>
+      </NDataTable>
     </NCard>
   </div>
 </template>

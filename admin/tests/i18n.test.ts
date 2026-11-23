@@ -8,7 +8,9 @@ async function load(saved: string | null) {
   vi.resetModules()
   localStorage.clear()
   if (saved) localStorage.setItem('lumee_admin_locale', saved)
-  return import('../src/i18n')
+  const m = await import('../src/i18n')
+  await m.loadLocale()   // English texts load on demand, as in main.ts
+  return m
 }
 
 afterEach(() => localStorage.clear())

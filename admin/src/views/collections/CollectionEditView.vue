@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
   NCard, NInput, NInputNumber, NButton, NSelect, NSwitch, NIcon, NSkeleton, NEmpty, NTag, NRadioGroup, NRadio, useMessage, useDialog,
 } from 'naive-ui'
@@ -80,8 +80,14 @@ async function load() {
     wasSmart.value = !!c.smart
   } finally {
     loading.value = false
+    setTimeout(() => { dirty.value = false })   // filling the form isn't an edit
   }
 }
+
+// Leaving with unsaved edits asks first (like the product editor)
+const dirty = ref(false)
+watch([form, seo, products, rules, rulesMatch, kind], () => { dirty.value = true }, { deep: true })
+onBeforeRouteLeave(() => !dirty.value || saving.value || window.confirm(t('有未保存的修改，确定离开吗？')))
 
 async function save() {
   if (!form.title.trim()) {
@@ -102,10 +108,12 @@ async function save() {
       : await http.post('/collections', body)
     invalidateCollections()
     message.success(t('已保存'))
+    dirty.value = false
     if (!id.value) router.replace({ name: 'collection-edit', params: { id: data.data.id } })
     else form.handle = data.data.handle
     if (data.data.products) products.value = data.data.products
     wasSmart.value = kind.value === 'smart'
+    setTimeout(() => { dirty.value = false })
   } catch (e) {
     message.error(errorMessage(e))
   } finally {
@@ -121,6 +129,7 @@ function destroy() {
     negativeText: t('取消'),
     onPositiveClick: async () => {
       await http.delete(`/collections/${id.value}`)
+      dirty.value = false
       invalidateCollections()
       message.success(t('已删除'))
       router.push({ name: 'collections' })
@@ -148,7 +157,7 @@ function onDragEnter(i: number) {
   dragIndex.value = i
 }
 
-onMounted(load)
+onMounted(() => { load(); if (!id.value) setTimeout(() => { dirty.value = false }) })
 </script>
 
 <template>

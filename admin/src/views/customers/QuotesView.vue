@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** Customers › Quotes: business buyers' quote requests; set prices, shipping and expiry, then send. */
 import { computed, h, onMounted, ref, watch } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { useRouter } from 'vue-router'
 import { NAlert, NButton, NCard, NDataTable, NDatePicker, NDrawer, NDrawerContent, NInput, NInputNumber, NTabs, NTab, NTag, useMessage, type DataTableColumns } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
@@ -89,7 +90,11 @@ async function decline() {
         </NTabs>
       </div>
       <NDataTable :columns="columns" :data="rows" :loading="loading" :bordered="false" :scroll-x="720"
-        :row-props="(r: Row) => ({ style: 'cursor:pointer', onClick: () => open(r) })" />
+        :row-props="(r: Row) => ({ style: 'cursor:pointer', onClick: () => open(r) })" >
+        <template #empty>
+          <EmptyState :title="t('这里没有询价单')" :text="t('批发买家在店铺里提交询价后会出现在这里，你可以报价，买家接受后自动生成订单。')" />
+        </template>
+      </NDataTable>
     </NCard>
 
     <NDrawer :show="!!d" :width="640" @update:show="(v: boolean) => !v && (d = null)">

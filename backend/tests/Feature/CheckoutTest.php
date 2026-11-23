@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\CartItem;
 use App\Models\Order;
+use App\Models\OrderNotification;
 use App\Models\ProductVariant;
 use App\Models\ShippingRate;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -252,5 +253,83 @@ class CheckoutTest extends TestCase
         // A forged session id changes nothing
         $send('checkout.session.async_payment_succeeded', 'cs_other', $b, 'paid');
         $this->assertSame('voided', $b->fresh()->financial_status);
+    }
+
+    public function test_unpaid_online_orders_release_their_stock_and_can_be_paid_again(): void
+    {
+        config(['services.stripe.secret' => 'sk_test_x', 'services.stripe.webhook_secret' => 'whsec_test']);
+        Http::fake(['api.stripe.com/*' => Http::response(['id' => 'cs_retry', 'url' => 'https://checkout.stripe.com/retry'])]);
+        $stock = fn () => ProductVariant::withoutGlobalScope('store')->find($this->variantId)->inventory_quantity;
+        $before = $stock();
+        $place = function (string $gateway) {
+            $this->shopper($this->addToCart($this->variantId, 1))->post(self::HOST.'/checkout', $this->checkoutData(['payment_gateway' => $gateway]));
+
+            return Order::withoutGlobalScope('store')->latest('id')->firstOrFail();
+        };
+
+        // Buyer closed the Stripe page: the order page offers to pay again, which goes back to Stripe
+        $card = $place('stripe');
+        $this->assertSame($before - 1, $stock());
+        $this->get(self::HOST."/orders/{$card->token}")->assertSee('Complete payment');
+        $this->post(self::HOST."/orders/{$card->token}/pay")->assertRedirect('https://checkout.stripe.com/retry');
+
+        // A bank transfer (offline) and an OXXO voucher waiting to be paid at a shop
+        $manual = $place('manual');
+        $voucher = $place('stripe');
+        $voucher->log('payment_pending', 'voucher');
+        $this->get(self::HOST."/orders/{$voucher->token}")->assertDontSee('Complete payment');
+
+        // A day later: the unpaid card order is cancelled and its unit is back; the others wait
+        $this->travel(25)->hours();
+        $this->artisan('lumee:expire-unpaid-orders')->assertSuccessful();
+        $this->assertSame('unpaid', $card->fresh()->cancel_reason);
+        $this->assertNull($manual->fresh()->cancelled_at);
+        $this->assertNull($voucher->fresh()->cancelled_at);
+        $this->assertSame($before - 2, $stock());
+        $this->post(self::HOST."/orders/{$card->token}/pay")->assertRedirect("/orders/{$card->token}");   // nothing to pay any more
+
+        // The voucher gets 7 days
+        $this->travel(7)->days();
+        $this->artisan('lumee:expire-unpaid-orders')->assertSuccessful();
+        $this->assertNotNull($voucher->fresh()->cancelled_at);
+        $this->assertNull($manual->fresh()->cancelled_at);
+    }
+
+    public function test_stripe_expired_checkout_cancels_right_away(): void
+    {
+        config(['services.stripe.secret' => 'sk_test_x', 'services.stripe.webhook_secret' => 'whsec_test']);
+        Http::fake(['api.stripe.com/*' => Http::response(['id' => 'cs_exp', 'url' => 'https://checkout.stripe.com/x'])]);
+        $this->shopper($this->addToCart($this->variantId, 1))->post(self::HOST.'/checkout', $this->checkoutData(['payment_gateway' => 'stripe']));
+        $order = Order::withoutGlobalScope('store')->firstOrFail();
+        $payload = json_encode(['type' => 'checkout.session.expired', 'data' => ['object' => ['id' => 'cs_exp', 'payment_status' => 'unpaid', 'metadata' => ['order_id' => $order->id]]]]);
+        $t = time();
+        $this->call('POST', '/webhooks/stripe', [], [], [], ['HTTP_STRIPE_SIGNATURE' => "t={$t},v1=".hash_hmac('sha256', $t.'.'.$payload, 'whsec_test'), 'CONTENT_TYPE' => 'application/json'], $payload)->assertOk();
+        $this->assertSame('unpaid', $order->fresh()->cancel_reason);
+        $this->assertSame('voided', $order->fresh()->financial_status);
+    }
+
+    public function test_buyer_who_did_not_pay_is_reminded_once(): void
+    {
+        config(['services.stripe.secret' => 'sk_test_x']);
+        Http::fake(['api.stripe.com/*' => Http::response(['id' => 'cs_r', 'url' => 'https://checkout.stripe.com/r'])]);
+        $this->shopper($this->addToCart($this->variantId, 1))->post(self::HOST.'/checkout', $this->checkoutData(['payment_gateway' => 'stripe']));
+        $card = Order::withoutGlobalScope('store')->latest('id')->firstOrFail();
+        $this->shopper($this->addToCart($this->variantId, 1))->post(self::HOST.'/checkout', $this->checkoutData(['payment_gateway' => 'manual']));
+        $sent = fn () => OrderNotification::withoutGlobalScope('store')->where('type', 'payment_reminder')->pluck('order_id')->all();
+
+        $this->artisan('lumee:expire-unpaid-orders')->assertSuccessful();
+        $this->assertSame([], $sent());   // too soon
+
+        $this->travel(2)->hours();
+        $this->artisan('lumee:expire-unpaid-orders')->assertSuccessful();
+        $this->artisan('lumee:expire-unpaid-orders')->assertSuccessful();
+        $this->assertSame([$card->id], $sent());   // once, only the online order
+        $this->assertSame('buyer@example.com', OrderNotification::withoutGlobalScope('store')->where('type', 'payment_reminder')->value('recipient'));
+
+        // Paid in the meantime: no reminder
+        OrderNotification::withoutGlobalScope('store')->where('type', 'payment_reminder')->delete();
+        $card->markPaid('pi_x');
+        $this->artisan('lumee:expire-unpaid-orders')->assertSuccessful();
+        $this->assertSame([], $sent());
     }
 }

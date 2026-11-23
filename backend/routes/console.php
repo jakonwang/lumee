@@ -52,3 +52,6 @@ Schedule::command('lumee:design-insights')->weeklyOn(1, '06:00')->withoutOverlap
 
 // Old assistant questions and price history
 Schedule::command('lumee:housekeeping')->dailyAt('03:50')->withoutOverlapping();
+
+// Online payments never completed: release their stock
+Schedule::command('lumee:expire-unpaid-orders')->hourlyAt(25)->withoutOverlapping();

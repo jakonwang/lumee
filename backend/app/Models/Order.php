@@ -20,6 +20,7 @@ class Order extends Model
         'inventory' => '库存不足',
         'fraud' => '疑似欺诈订单',
         'declined' => '付款失败',
+        'unpaid' => '超时未付款',   // online payment never completed (see lumee:expire-unpaid-orders)
         'other' => '其他原因',
     ];
 

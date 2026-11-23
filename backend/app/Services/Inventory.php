@@ -2,9 +2,13 @@
 
 namespace App\Services;
 
+use App\Catalog\SmartCollections;
+use App\Marketing\StockAlerts;
 use App\Models\InventoryAdjustment;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\User;
+use App\Storefront\PageCache;
 
 /**
  * Every stock change goes through here (or the ProductVariant "saved" hook for editor/import saves),
@@ -42,11 +46,12 @@ class Inventory
         if ($v) {
             self::log($v, $delta, $reason, $orderId, $note);
             if ($delta > 0) {
-                rescue(fn () => app(\App\Marketing\StockAlerts::class)->restocked($v->id, (int) $v->inventory_quantity - $delta, (int) $v->inventory_quantity));
+                rescue(fn () => app(StockAlerts::class)->restocked($v->id, (int) $v->inventory_quantity - $delta, (int) $v->inventory_quantity));
             }
             $before = (int) $v->inventory_quantity - $delta;
             if (($before > 0) !== ((int) $v->inventory_quantity > 0)) {   // in / out of stock → "stock" rules
-                rescue(fn () => app(\App\Catalog\SmartCollections::class)->syncProduct(\App\Models\Product::withoutGlobalScope('store')->find($v->product_id)));
+                PageCache::bump($v->store_id);   // cached pages show "Sold out" / back in stock right away
+                rescue(fn () => app(SmartCollections::class)->syncProduct(Product::withoutGlobalScope('store')->find($v->product_id)));
             }
         }
     }

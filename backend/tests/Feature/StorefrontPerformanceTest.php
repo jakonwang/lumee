@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Media\Img;
 use App\Models\ProductImage;
+use App\Support\Color;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -235,5 +236,43 @@ class StorefrontPerformanceTest extends TestCase
         $this->assertStringContainsString(self::HOST.'/sitemap.xml?page=1', $index);
         $this->assertSame(2, substr_count($this->get(self::HOST.'/sitemap.xml?page=1')->assertOk()->getContent(), '<url>'));
         $this->get(self::HOST.'/sitemap.xml?page=99')->assertNotFound();
+    }
+
+    public function test_pages_have_a_main_heading_structured_data_and_readable_secondary_text(): void
+    {
+        $this->ring('Moon ring', [[['Size' => '6'], 50, 3]]);
+        $html = $this->shopper()->get(self::HOST.'/')->assertOk()->getContent();
+        // Exactly one h1 (the default home page opens with the hero)
+        $this->assertSame(1, substr_count($html, '<h1'));
+        // The store and its search box for search engines
+        preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $html, $m);
+        $ld = json_decode($m[1] ?? '', true);
+        $this->assertSame(['Organization', 'WebSite'], array_column($ld['@graph'] ?? [], '@type'));
+        $this->assertStringContainsString('/search?q={search_term_string}', $ld['@graph'][1]['potentialAction']['target']);
+        // Products without a vendor carry the store as brand
+        $this->assertStringContainsString('"brand":{"@type":"Brand","name":"Shop A"}', $this->shopper()->get(self::HOST.'/products/moon-ring')->getContent());
+
+        // Secondary text is at least 4.5:1 on the page background (brand colors are left as the merchant chose)
+        preg_match('/--ink-muted: (#[0-9A-F]{6});/', $html, $muted);
+        preg_match('/--ivory: (#[0-9A-F]{6});/', $html, $bg);
+        $this->assertGreaterThanOrEqual(4.5, Color::contrast($muted[1], $bg[1]));
+        $this->assertSame('#123456', Color::readable('#123456', '#FFFFFF'));   // already fine: unchanged
+        $this->assertGreaterThanOrEqual(4.5, Color::contrast(Color::readable('#AAAAAA', '#FFFFFF'), '#FFFFFF'));
+    }
+
+    public function test_security_headers(): void
+    {
+        config(['lumee.admin_url' => 'https://admin.example.com']);
+        // Storefront page: the store and the admin (theme editor preview) may frame it, nobody else
+        $page = $this->shopper()->get(self::HOST.'/')->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+            ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        $this->assertSame("frame-ancestors 'self' https://admin.example.com", $page->headers->get('Content-Security-Policy'));
+        $this->assertNull($page->headers->get('Strict-Transport-Security'));   // plain http here: no HSTS
+        // API: never framed
+        $this->getJson('/api/admin/me')->assertHeader('Content-Security-Policy', "frame-ancestors 'none'")->assertHeader('X-Content-Type-Options', 'nosniff');
+        // HTTPS: HSTS
+        $this->shopper()->get('https://shop-a.lumee.localhost/')->assertHeader('Strict-Transport-Security', 'max-age=15552000');
     }
 }

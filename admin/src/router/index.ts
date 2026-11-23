@@ -8,6 +8,7 @@ export const router = createRouter({
     { path: '/invite/:token', name: 'invite', component: () => import('@/views/InviteAcceptView.vue'), meta: { public: true } },
     { path: '/oauth/authorize', name: 'oauth-authorize', component: () => import('@/views/apps/OAuthAuthorizeView.vue'), meta: { title: t('安装应用') } },
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { guest: true } },
+    { path: '/unavailable', name: 'unavailable', component: () => import('@/views/UnavailableView.vue'), meta: { public: true } },
     {
       path: '/',
       component: () => import('@/layouts/AdminLayout.vue'),
@@ -115,7 +116,14 @@ router.beforeEach(async (to) => {
   if (to.meta.guest) return auth.isLoggedIn ? '/' : true
   if (!auth.isLoggedIn) return to.fullPath === '/' ? '/login' : { path: '/login', query: { redirect: to.fullPath } }
   if (!auth.user) {
-    try { await auth.fetchMe() } catch { return '/login' }
+    try {
+      await auth.fetchMe()
+    } catch (e) {
+      // Signed out (401 clears the token): sign in again. Anything else (server down, network) isn't a sign-in problem —
+      // sending a signed-in user to /login would bounce straight back here and end in a blank page.
+      const status = (e as { response?: { status?: number } }).response?.status
+      return status === 401 ? '/login' : { name: 'unavailable', query: { redirect: to.fullPath } }
+    }
   }
   // Ops console: Lumée staff only
   if (to.meta.ops && !auth.user?.is_platform_admin) return '/'

@@ -983,6 +983,17 @@
 - **各站点表现**：每个站点的跳出率、加购率、转化率、每次访问收入、手机占比、首页跳出等，和上一个同样长度的时段对比，并列出期间的设计改动。
 - **每周建议**：`php artisan lumee:design-insights` 每周一 06:00 运行，规则发现 + Claude 建议（需要获客雷达里的 Claude Key，占用 AI 装修额度），结果存在 `design_insights`，每个站点每周一条。测试结果同时检验转化率和每次访问收入；还没有结论时，按目前的差距估算每个版本大约还需要多少访问；测试超过 28 天仍然差别很小时，建议停止并保留 A 版。配置了 Claude Key 时，每条建议旁有「让 AI 按这条修改」，会打开对应站点的装修编辑器，AI 助手里已经填好这条建议，生成方案后照常预览、再决定是否应用。
 
+## 前台无障碍与 SEO
+
+- 每个页面只有一个主标题（h1）：首页以首屏大图开头时用它的标题，否则放一个屏幕上看不见、但搜索引擎和读屏软件能读到的店铺名。
+- 结构化数据：首页有 Organization 和 WebSite（含站内搜索）；商品页有 Product（每个规格的价格和库存；没有填品牌时用店铺名）；博客文章有 Article。
+- 次要文字（灰色说明、划线价、页脚）自动保证和背景至少 4.5:1 的对比度（WCAG AA）。商家选的品牌色不会被自动修改，按钮对比度低于 3:1 时由装修检查提醒。
+- 可点击的图标（页头的搜索、收藏、账户、购物袋，轮播圆点）至少 24×24 像素。
+
+## 安全响应头
+
+所有后端响应（店铺前台和 API）都带：`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、关闭摄像头/麦克风/定位的 `Permissions-Policy`，HTTPS 下加 HSTS。店铺页面只允许被店铺自己和商家后台嵌入（装修编辑器预览要用，后台地址来自 `LUMEE_ADMIN_URL`，正式环境要设成后台的真实地址），其他响应一律不允许被嵌入，防止点击劫持。后台静态站点的同类响应头在 `.makeserver/docker/admin.Caddyfile` 里（后台不允许被任何页面嵌入）。
+
 ## AI 导购
 
 后台「在线商店 › AI 导购」开启后，店铺右下角出现聊天按钮（代码在 `backend/app/Assistant/ShoppingAssistant.php`）。
@@ -1223,6 +1234,11 @@ php -d extension=pdo_sqlite vendor/bin/phpunit
 
 测试使用内存 SQLite 数据库。php.ini 里没有开启 pdo_sqlite，所以命令里用 `-d` 临时加载这个扩展。测试默认开启页面缓存（和正式环境一致）。
 
+`StorefrontQueryBudgetTest` 检查前台主要页面（首页、分类页、全部商品、商品页、搜索、购物车）的数据库查询次数：商品变多时不能增加（防止“每个商品查一次”的问题），并且不超过各页面的预算。
+`AdminQueryBudgetTest` 对后台常用的 18 个列表和报表接口做同样的检查（订单、商品、客户、评论、礼品卡、数据分析等）。
+
+后台的英文翻译（约 200 KB）单独打包，只有切换到英文时才下载；中文后台首次打开要下载的主程序因此小了约一半。
+
 后台（Vue）有单元测试（Vitest + Vue Test Utils，文件在 `admin/tests/`，不参与 `npm run build` 的类型检查）：
 
 ```bash
@@ -1233,6 +1249,8 @@ npm test
 目前覆盖：中英文切换和占位符、所有中文界面文字都有英文翻译（缺翻译会让测试失败）、新建主题模块的默认值、装修编辑器字段组件（文本、开关）。
 
 每次推送和每个 Pull Request，GitHub Actions（`.github/workflows/tests.yml`）会自动跑后端测试、后台测试和后台类型检查。部署流程（`makeserver.yml`，由 makeserver 生成）是单独的，目前不会等测试结果；要等测试通过再部署，需要在 makeserver 里设置，或在 GitHub 的分支保护里要求 tests 通过后才能合并到 main。
+
+**未付款订单**：库存在下单时就扣除（买家去 Stripe / PayPal 付款之前），所以 `php artisan lumee:expire-unpaid-orders` 每小时检查一次：在线付款（Stripe、PayPal、Airwallex、Razorpay）超过 24 小时没付的订单自动取消（原因「超时未付款」），退回库存、折扣码次数和礼品卡余额，不给买家发邮件；OXXO、Boleto 这类到店付款的给 7 天。Stripe 的 `checkout.session.expired` 通知到了会立即取消（Stripe 后台 webhook 需要勾选这个事件）。买家关掉付款页后，订单页有「完成付款」按钮可以回去付款。下单 1 小时后还没付款的，会给买家发一封「未付款提醒」邮件（只发一次，附完成付款链接，可在「设置 › 邮件通知」里关闭）。商品从有货变成售罄（或反过来）时，页面缓存立即刷新。银行转账、货到付款、账期订单不会自动取消。
 
 **定期清理**：`php artisan lumee:housekeeping` 每天 03:50 运行，删除 180 天前的 AI 导购问题记录，以及 400 天前的价格记录（每个规格、每个站点保留截止日前的最后一条价格，欧盟最低价规则可能还要用）。
 

@@ -674,5 +674,13 @@
     "Your question": "ご質問",
     "Send": "送信",
     "Sorry, I can’t answer right now. Please try again in a moment.": "申し訳ありません、ただいま回答できません。少し時間をおいてお試しください。",
-    "The shopping assistant is not available right now.": "ショッピングアシスタントは現在ご利用いただけません。"
+    "The shopping assistant is not available right now.": "ショッピングアシスタントは現在ご利用いただけません。",
+    "If you already paid, this page will update shortly. If you left the payment page, you can finish paying now — your items are reserved for 24 hours.": "お支払い済みの場合、このページはまもなく更新されます。お支払いページを閉じた場合は、今すぐお支払いを完了できます（商品は24時間確保されています）。",
+    "Complete payment": "お支払いを完了する",
+    "Your order :number is waiting for payment": "ご注文 :number のお支払いが完了していません",
+    "Your items are reserved — finish paying to complete your order.": "商品を確保しています。お支払いを完了してご注文を確定してください。",
+    "Your order is waiting for payment": "お支払いをお待ちしています",
+    "It looks like the payment wasn’t finished. We’re holding your items for you — complete your payment within 24 hours of ordering to keep them.": "お支払いが完了していないようです。商品は確保していますので、ご注文から24時間以内にお支払いを完了してください。",
+    "Already paid? Then you can ignore this email — your confirmation is on its way.": "お支払い済みの場合は、このメールは無視してください。確認メールをお送りします。",
+    "We didn't receive payment in time, so the order has been cancelled and the items released.": "期限内にお支払いが確認できなかったため、ご注文はキャンセルされ、商品の確保は解除されました。"
 }

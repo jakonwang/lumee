@@ -73,6 +73,7 @@ $storefront = function () {
         Route::post('/assistant', [\App\Http\Controllers\Storefront\AssistantController::class, 'ask'])->middleware('throttle:20,1');   // AI shopping assistant
         Route::get('/wishlist/products', [StorefrontController::class, 'wishlistProducts'])->middleware('throttle:60,1');
         Route::get('/orders/{token}', [CheckoutController::class, 'order'])->whereUuid('token')->name('store.order');
+        Route::post('/orders/{token}/pay', [CheckoutController::class, 'pay'])->whereUuid('token')->middleware('throttle:checkout');   // back to the payment page
         Route::get('/affiliate/{token}', [StorefrontController::class, 'affiliate'])->where('token', '[A-Za-z0-9]{48}');
         Route::get('/downloads/{token}', [StorefrontController::class, 'download'])->where('token', '[A-Za-z0-9]{48}')->middleware('throttle:30,1');
         Route::post('/orders/{token}/returns', [\App\Http\Controllers\Storefront\ReturnController::class, 'store'])->whereUuid('token')->middleware('throttle:10,1');

@@ -4,7 +4,6 @@
  * t('{name} 的店铺', { name }). Switching language saves the choice and reloads the app, so
  * module-level labels (menus, status maps) are built once in the right language.
  */
-import en from './en.json'
 
 export type Locale = 'zh-CN' | 'en'
 
@@ -21,7 +20,12 @@ function initial(): Locale {
 
 export const locale: Locale = initial()
 
-const dict: Record<string, string> = locale === 'en' ? (en as Record<string, string>) : {}
+// English texts load on their own (they're ~200 KB): Chinese admins never download them. main.ts waits for
+// loadLocale() before importing the app, so module-level labels (menus, page titles) are translated too.
+let dict: Record<string, string> = {}
+export async function loadLocale(): Promise<void> {
+  if (locale === 'en') dict = (await import('./en.json')).default as Record<string, string>
+}
 
 const warned = new Set<string>()
 

@@ -48,8 +48,12 @@
     .ss-copy p { margin: 0 0 24px; font-size: 17px; }
     .ss-slide.has-img .ss-copy { color: #fff; }
     .ss-dots { position: absolute; inset-inline: 0; bottom: 14px; display: flex; justify-content: center; gap: 8px; }
-    .ss-dots button { width: 9px; height: 9px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,.55); box-shadow: 0 0 0 1px rgba(0,0,0,.15); cursor: pointer; }
-    .ss-dots button[aria-current="true"] { background: #fff; width: 22px; border-radius: 6px; }
+    /* 24×24 tap area; the dot itself is drawn inside */
+    .ss-dots { gap: 0; }
+    .ss-dots button { position: relative; width: 24px; height: 24px; border: 0; padding: 0; background: none; cursor: pointer; }
+    .ss-dots button::before { content: ""; position: absolute; inset: 7.5px; border-radius: 50%; background: rgba(255,255,255,.55); box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+    .ss-dots button[aria-current="true"] { width: 34px; }
+    .ss-dots button[aria-current="true"]::before { background: #fff; border-radius: 6px; }
     @media (max-width: 720px) { .slideshow.h-large .ss-slide, .slideshow.h-medium .ss-slide { min-height: 420px; } }
 </style>
 @endpush

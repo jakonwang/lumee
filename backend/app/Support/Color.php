@@ -38,4 +38,32 @@ final class Color
 
         return 0.2126 * $c[0] + 0.7152 * $c[1] + 0.0722 * $c[2];
     }
+
+    /** WCAG contrast ratio between two colors (1–21). */
+    public static function contrast(string $a, string $b): float
+    {
+        [$hi, $lo] = [max(self::luminance($a), self::luminance($b)), min(self::luminance($a), self::luminance($b))];
+
+        return ($hi + 0.05) / ($lo + 0.05);
+    }
+
+    /**
+     * $hex moved toward black or white (whichever is further from $against) in small steps until the two reach
+     * $ratio — WCAG AA is 4.5 for normal text. Unchanged when it already passes, so merchant colors stay as chosen.
+     */
+    public static function readable(string $hex, string $against, float $ratio = 4.5): string
+    {
+        if (self::contrast($hex, $against) >= $ratio) {
+            return $hex;
+        }
+        $toward = self::luminance($against) > 0.5 ? '#000000' : '#FFFFFF';
+        for ($step = 0.04; $step <= 1.0; $step += 0.04) {
+            $c = self::mix($hex, $toward, $step);
+            if (self::contrast($c, $against) >= $ratio) {
+                return $c;
+            }
+        }
+
+        return $toward;
+    }
 }

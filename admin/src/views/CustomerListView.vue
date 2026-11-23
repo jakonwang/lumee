@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref, watch } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { useRouter } from 'vue-router'
 import { NButton, NCard, NDataTable, NInput, NModal, NSelect, NTag, useMessage, type DataTableColumns, type DataTableRowKey } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
@@ -167,7 +168,12 @@ async function exportCsv() {
         :row-key="(r: Customer) => r.id"
         :row-props="(r: Customer) => ({ style: 'cursor:pointer', onClick: (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.n-data-table-td--selection')) router.push({ name: 'customer', params: { id: r.id } }) } })"
         @update:page="onPage"
-      />
+      >
+        <template #empty>
+          <EmptyState v-if="q" :title="t('没有符合条件的客户')" :text="t('换个关键词，或清空搜索看看全部客户。')" />
+          <EmptyState v-else :title="t('还没有客户')" :text="t('买家下单、注册账户或订阅邮件后，会自动出现在这里。')" />
+        </template>
+      </NDataTable>
     </NCard>
 
     <NModal :show="bulk !== null" preset="card" :title="bulk === 'add' ? t('添加标签') : t('移除标签')" style="width: 400px; max-width: 94vw" @update:show="(v: boolean) => !v && (bulk = null)">

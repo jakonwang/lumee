@@ -17,6 +17,7 @@ final class NotificationSettings
         'payment_received' => ['customer', '收款确认', '银行转账订单被标记为已付款后发送'],
         'shipping_confirmation' => ['customer', '发货通知', '订单发货后发送，包含物流单号'],
         'pickup_ready' => ['customer', '自提通知', '到店自提订单备好后发送（点「发货」时），包含自提地址和营业时间'],
+        'payment_reminder' => ['customer', '未付款提醒', '买家去在线付款后没有完成，下单 1 小时后提醒一次，附「完成付款」链接（24 小时后仍未付款的订单会自动取消）'],
         'order_cancelled' => ['customer', '订单取消', '取消订单时可选择发送，包含退款说明'],
         'refund_notification' => ['customer', '退款通知', '退款时可选择发送，告知退款金额'],
         'delivery_confirmation' => ['customer', '签收通知', '包裹显示已签收时发送（需要平台开启物流跟踪）'],

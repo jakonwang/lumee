@@ -7,6 +7,16 @@
 	root * /srv
 	encode zstd gzip
 
+	# Security headers: the admin is never framed (clickjacking), no type sniffing, no full URLs in Referer
+	header {
+		X-Frame-Options "DENY"
+		Content-Security-Policy "frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=15552000"
+	}
+
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 

@@ -1038,5 +1038,8 @@
   "Oswald（窄体粗体）": "Oswald (condensed, bold)",
   "Archivo Narrow（紧凑现代）": "Archivo Narrow (compact, modern)",
   "Bebas Neue（海报大字）": "Bebas Neue (poster headlines)",
-  "Bodoni Moda（高对比衬线）": "Bodoni Moda (high-contrast serif)"
+  "Bodoni Moda（高对比衬线）": "Bodoni Moda (high-contrast serif)",
+  "超时未付款": "Not paid in time",
+  "未付款提醒": "Payment reminder",
+  "买家去在线付款后没有完成，下单 1 小时后提醒一次，附「完成付款」链接（24 小时后仍未付款的订单会自动取消）": "When a buyer didn’t finish paying online, remind them once an hour after ordering, with a “Complete payment” link (orders still unpaid after 24 hours are cancelled automatically)"
 }

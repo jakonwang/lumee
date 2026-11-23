@@ -58,9 +58,13 @@
                     @elseif ($order->payment_gateway === 'stripe' && $order->events()->where('type', 'payment_pending')->exists())
                         <strong>{{ __('Waiting for your payment') }}</strong>
                         <p style="color:var(--ink-muted);margin:6px 0 0;font-size:14px;">{{ __('Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.') }}</p>
-                    @elseif ($order->payment_gateway === 'stripe')
-                        <strong>{{ __('Awaiting payment confirmation') }}</strong>
-                        <p style="color:var(--ink-muted);margin:6px 0 0;font-size:14px;">{{ __('If you completed payment, this page will update shortly. Refresh to check again.') }}</p>
+                    @elseif (\App\Http\Controllers\Storefront\CheckoutController::canPayAgain($order))
+                        <strong>{{ __('Awaiting payment') }}</strong>
+                        <p style="color:var(--ink-muted);margin:6px 0 0;font-size:14px;">{{ __('If you already paid, this page will update shortly. If you left the payment page, you can finish paying now — your items are reserved for 24 hours.') }}</p>
+                        <form method="post" action="/orders/{{ $order->token }}/pay" style="margin-top:14px;">
+                            @csrf
+                            <button class="btn" type="submit">{{ __('Complete payment') }}</button>
+                        </form>
                     @else
                         <strong>{{ __('Awaiting payment') }}</strong>
                         <p style="color:var(--ink-muted);margin:6px 0 0;font-size:14px;">{!! __('Please pay :amount using order number :number as the reference. Your order will ship once payment is received.', ['amount' => '<strong class="money">'.e($m($order->total)).'</strong>', 'number' => '<strong>'.e($order->name()).'</strong>']) !!}</p>

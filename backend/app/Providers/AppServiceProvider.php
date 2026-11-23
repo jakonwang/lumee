@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(\App\Currency\Presentment::class);
         $this->app->scoped(\App\Markets\MarketContext::class);
         $this->app->scoped(\App\Themes\SectionData::class);
+        $this->app->scoped(MenuService::class);   // resolved menus are remembered for the request
         $this->app->scoped(\App\Storefront\PageCache::class);   // what this request's page cache entry needs
         $this->app->scoped(\App\Themes\DesignExperiments::class);   // design A/B tests running on this request's site   // data the storefront blocks look up (memoized per request)
         $this->app->scoped(\App\Testing\Experiments::class);   // running A/B tests seen in this request   // the market (country site) of this storefront request

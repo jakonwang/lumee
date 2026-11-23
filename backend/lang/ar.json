@@ -687,5 +687,13 @@
     "Your question": "سؤالك",
     "Send": "إرسال",
     "Sorry, I can’t answer right now. Please try again in a moment.": "عذرًا، لا أستطيع الإجابة الآن. حاول مرة أخرى بعد قليل.",
-    "The shopping assistant is not available right now.": "مساعد التسوق غير متاح حاليًا."
+    "The shopping assistant is not available right now.": "مساعد التسوق غير متاح حاليًا.",
+    "If you already paid, this page will update shortly. If you left the payment page, you can finish paying now — your items are reserved for 24 hours.": "إذا كنت قد دفعت بالفعل، فسيتم تحديث هذه الصفحة قريبًا. إذا غادرت صفحة الدفع، يمكنك إتمام الدفع الآن — منتجاتك محجوزة لمدة 24 ساعة.",
+    "Complete payment": "إتمام الدفع",
+    "Your order :number is waiting for payment": "طلبك :number بانتظار الدفع",
+    "Your items are reserved — finish paying to complete your order.": "منتجاتك محجوزة — أكمل الدفع لإتمام طلبك.",
+    "Your order is waiting for payment": "طلبك بانتظار الدفع",
+    "It looks like the payment wasn’t finished. We’re holding your items for you — complete your payment within 24 hours of ordering to keep them.": "يبدو أن الدفع لم يكتمل. نحن نحجز منتجاتك — أكمل الدفع خلال 24 ساعة من الطلب للاحتفاظ بها.",
+    "Already paid? Then you can ignore this email — your confirmation is on its way.": "هل دفعت بالفعل؟ يمكنك تجاهل هذه الرسالة — تأكيدك في الطريق.",
+    "We didn't receive payment in time, so the order has been cancelled and the items released.": "لم نتلقَّ الدفع في الوقت المحدد، لذا أُلغي الطلب وأُعيدت المنتجات للبيع."
 }

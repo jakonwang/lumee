@@ -67,7 +67,7 @@
         'name' => $product->title,
         'description' => \App\Support\Seo::text($product->description, 5000),
         'image' => $images->map(fn ($i) => $abs($i->url()))->values()->all(),
-        'brand' => $product->vendor ? ['@type' => 'Brand', 'name' => $product->vendor] : null,
+        'brand' => ['@type' => 'Brand', 'name' => $product->vendor ?: $store->name],
         'sku' => $selected?->sku,
         'offers' => $variants->map(fn ($v) => array_filter([
             '@type' => 'Offer',

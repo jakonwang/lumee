@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { h, onMounted, ref, watch } from 'vue'
+import EmptyState from '@/components/EmptyState.vue'
 import { useRouter } from 'vue-router'
 import { NCard, NDataTable, NTag, NTabs, NTab, NInput, NButton, useMessage, type DataTableColumns } from 'naive-ui'
 import { download } from '@/utils/download'
@@ -132,7 +133,14 @@ async function exportCsv() {
         :scroll-x="860"
         :row-props="(r: Order) => ({ style: 'cursor:pointer', onClick: () => router.push({ name: 'order', params: { id: r.id } }) })"
         @update:page="onPage"
-      />
+      >
+        <template #empty>
+          <EmptyState v-if="q || tab !== 'all'" :title="t('没有符合条件的订单')" :text="t('换个关键词，或切换到「全部」看看。')" />
+          <EmptyState v-else :title="t('还没有订单')" :text="t('买家下单后会出现在这里。也可以为电话或线下的客户手动创建订单。')">
+            <NButton @click="router.push({ name: 'order-new' })">{{ t('手动创建订单') }}</NButton>
+          </EmptyState>
+        </template>
+      </NDataTable>
     </NCard>
   </div>
 </template>

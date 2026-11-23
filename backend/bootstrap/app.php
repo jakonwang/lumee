@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(ResetRequestScopedState::class);
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);   // nosniff, referrer, framing, HSTS on every response
         // Behind Caddy / nginx: honour X-Forwarded-Proto so URLs are https.
         // Same machine by default; in Docker the proxy is another container, so set TRUSTED_PROXIES=* there.
         $trustedProxies = (string) env('TRUSTED_PROXIES', '');
