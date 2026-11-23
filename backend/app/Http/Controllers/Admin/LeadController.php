@@ -56,18 +56,29 @@ class LeadController extends Controller
             'google_key' => ['nullable', 'string', 'max:200'],
             'anthropic_key' => ['nullable', 'string', 'max:300'],
             'anthropic_workspace' => ['nullable', 'string', 'max:100', 'regex:/^wrkspc_[A-Za-z0-9]+$/'],
+            'meta_token' => ['nullable', 'string', 'max:600'],
+            'ig_user_id' => ['nullable', 'string', 'max:40', 'regex:/^\d*$/'],
+            'hunter_key' => ['nullable', 'string', 'max:200'],
+            'serpapi_key' => ['nullable', 'string', 'max:200'],
             'ai_auto' => ['boolean'],
             'sender' => ['array'],
             'sender.*' => ['nullable', 'string', 'max:500'],
         ], ['anthropic_workspace.regex' => __('Workspace ID 以 wrkspc_ 开头，请从 console.anthropic.com › Settings › Workspaces 复制')]);
-        foreach (['google_key', 'anthropic_key'] as $k) {     // clear_x empties it; blank keeps the saved key
+        $store = $current->getOrFail();
+        if ($request->boolean('clear_serpapi_key')) {
+            \App\Research\Radar::saveKey($store, null);
+        } elseif (filled($data['serpapi_key'] ?? null)) {
+            \App\Research\Radar::saveKey($store, trim($data['serpapi_key']));
+        }
+        unset($data['serpapi_key']);
+        foreach (['google_key', 'anthropic_key', 'meta_token', 'hunter_key'] as $k) {     // clear_x empties it; blank keeps the saved key
             if ($request->boolean("clear_{$k}")) {
                 $data[$k] = '';
             } elseif (blank($data[$k] ?? null)) {
                 unset($data[$k]);
             }
         }
-        LeadSettings::save($current->getOrFail(), $data);
+        LeadSettings::save($store->fresh(), $data);
 
         return response()->json(['settings' => LeadSettings::public($current->getOrFail()->fresh())]);
     }
@@ -75,8 +86,11 @@ class LeadController extends Controller
     /** "Test connection" in settings: one tiny real request with the saved key, reporting exactly what's wrong. */
     public function testKey(Request $request, CurrentStore $current, LeadAi $ai): JsonResponse
     {
-        $data = $request->validate(['service' => ['required', Rule::in(['anthropic', 'google'])]]);
+        $data = $request->validate(['service' => ['required', Rule::in(['anthropic', 'google', 'serpapi', 'instagram', 'hunter'])]]);
         $store = $current->getOrFail();
+        if (in_array($data['service'], ['serpapi', 'instagram', 'hunter'], true)) {
+            return response()->json($this->testChannel($store, $data['service']));
+        }
         if ($data['service'] === 'anthropic') {
             if (! LeadAi::ready($store)) {
                 return response()->json(['ok' => false, 'message' => __('还没有保存 Claude API Key')]);
@@ -103,6 +117,38 @@ class LeadController extends Controller
         return response()->json($r->successful()
             ? ['ok' => true, 'message' => __('连接成功，Google 地图可以正常搜索')]
             : ['ok' => false, 'message' => 'Google：'.($r->json('error.message') ?? 'HTTP '.$r->status())]);
+    }
+
+    /** @return array{ok: bool, message: string} */
+    private function testChannel(\App\Models\Store $store, string $service): array
+    {
+        try {
+            switch ($service) {
+                case 'serpapi':
+                    $api = \App\Research\SerpApi::for($store) ?? throw new RuntimeException(__('还没有保存 SerpApi Key'));
+                    $api->google('phone accessories wholesale', 'US', 'en');
+
+                    return ['ok' => true, 'message' => __('连接成功，可以搜索 Google 网页和社媒主页')];
+                case 'instagram':
+                    if (! \App\LeadFinder\ProfileEnricher::instagramReady($store)) {
+                        throw new RuntimeException(__('还没有保存 Meta Token 和 Instagram 账号 ID'));
+                    }
+                    app(\App\LeadFinder\ProfileEnricher::class)->instagram($store, 'instagram');
+
+                    return ['ok' => true, 'message' => __('连接成功，可以读取 Instagram 商业账号资料')];
+                default:
+                    if (! \App\LeadFinder\ProfileEnricher::hunterReady($store)) {
+                        throw new RuntimeException(__('还没有保存 Hunter.io Key'));
+                    }
+                    app(\App\LeadFinder\ProfileEnricher::class)->hunter($store, 'stripe.com');
+
+                    return ['ok' => true, 'message' => __('连接成功，可以按域名查找邮箱')];
+            }
+        } catch (RuntimeException $e) {
+            return ['ok' => false, 'message' => $e->getMessage()];
+        } catch (\Throwable) {
+            return ['ok' => false, 'message' => __('连接失败，请检查服务器网络')];
+        }
     }
 
     /** One sentence → a search the merchant can review and start. */
@@ -145,22 +191,30 @@ class LeadController extends Controller
             'country' => ['required', Rule::in(array_keys(LeadProfiles::countries()))],
             'cities' => ['array', 'max:8'],
             'cities.*' => ['string', 'max:80'],
-            'source' => ['required', Rule::in(['google', 'osm'])],
+            'source' => ['required', Rule::in(['google', 'osm', 'web'])],
+            'channels' => ['nullable', 'required_if:source,web', 'array', 'min:1'],
+            'channels.*' => [Rule::in(\App\LeadFinder\Sources\WebSearchSource::CHANNELS)],
             'limit' => ['nullable', 'integer', 'min:10', 'max:300'],
         ], ['keywords.required' => __('请至少填写一个搜索关键词')]);
         $store = $current->getOrFail();
         if ($data['source'] === 'google' && ! LeadSettings::googleKey($store)) {
             return response()->json(['message' => __('使用 Google 地图需要先在「获客设置」里填写 API Key')], 422);
         }
+        if ($data['source'] === 'web' && ! LeadSettings::serpReady($store)) {
+            return response()->json(['message' => __('搜索网页和社媒需要先在「获客设置」里填写 SerpApi Key')], 422);
+        }
+        $channels = $data['source'] === 'web' ? array_values(array_unique($data['channels'])) : null;
+        $channelNames = ['web' => __('官网'), 'facebook' => 'Facebook', 'instagram' => 'Instagram', 'linkedin' => 'LinkedIn', 'tiktok' => 'TikTok'];
         if (LeadSearch::whereIn('status', ['queued', 'running'])->count() >= 3) {
             return response()->json(['message' => __('已有 3 个搜索在进行中，请等它们完成后再开始新的搜索')], 422);
         }
         $country = LeadProfiles::countries()[$data['country']];
         $cities = array_values(array_filter(array_map('trim', $data['cities'] ?? [])));
         $search = LeadSearch::create([
-            'name' => $country['zh'].($cities ? ' · '.implode('、', array_slice($cities, 0, 3)).(count($cities) > 3 ? '…' : '') : '').' · '.Str::limit($data['keywords'][0], 40),
+            'name' => $country['zh'].($cities ? ' · '.implode('、', array_slice($cities, 0, 3)).(count($cities) > 3 ? '…' : '') : '').' · '.Str::limit($data['keywords'][0], 40)
+                .($channels ? ' · '.implode('/', array_map(fn ($c) => $channelNames[$c], $channels)) : ''),
             'industry' => $data['industry'], 'keywords' => array_values(array_unique($data['keywords'])), 'country' => $data['country'],
-            'cities' => $cities, 'source' => $data['source'], 'status' => 'queued',
+            'cities' => $cities, 'source' => $data['source'], 'channels' => $channels, 'status' => 'queued',
         ]);
         RunLeadSearch::dispatch($search->id, $data['limit'] ?? 60);
 
@@ -235,7 +289,7 @@ class LeadController extends Controller
 
         return response()->json(['data' => [...$this->row($lead),
             'address' => $lead->address, 'phones' => $lead->phones ?? [], 'lat' => $lead->lat, 'lng' => $lead->lng, 'signals' => $lead->signals ?? [],
-            'enrich_error' => $lead->enrich_error, 'note' => $lead->note, 'search' => $lead->search?->only(['id', 'name', 'industry']),
+            'enrich_error' => $lead->enrich_error, 'note' => $lead->note, 'search' => $lead->search?->only(['id', 'name', 'industry']), 'contacts' => $lead->contacts ?? [],
             'has_site_text' => (bool) $lead->site_text,
             'activities' => $lead->activities()->latest('id')->limit(50)->get(['id', 'type', 'body', 'created_at']),
         ]]);
@@ -407,10 +461,10 @@ class LeadController extends Controller
         $seg = LeadScorer::SEGMENT_LABELS;
 
         return Csv::download('leads-'.now()->format('Ymd-His').'.csv',
-            ['公司', '评分', '客户类型', '国家', '城市', '地址', '电话', '邮箱', '官网', 'WhatsApp', 'Facebook', 'Instagram', 'LinkedIn', '评分(Google)', '评价数', '状态', '简介', '备注'],
+            ['公司', '评分', '客户类型', '国家', '城市', '地址', '电话', '邮箱', '官网', 'WhatsApp', 'Facebook', 'Instagram', 'LinkedIn', 'TikTok', '粉丝数', '评分(Google)', '评价数', '状态', '简介', '备注'],
             $rows->map(fn (Lead $l) => [$l->name, $l->score, $seg[$l->segment] ?? $l->segment, $l->country, $l->city, $l->address, $l->phone,
                 implode('; ', $l->emails ?? []), $l->website, $l->socials['whatsapp'] ?? '', $l->socials['facebook'] ?? '', $l->socials['instagram'] ?? '',
-                $l->socials['linkedin'] ?? '', $l->rating, $l->reviews_count, $l->status, $l->summary, $l->note]));
+                $l->socials['linkedin'] ?? '', $l->socials['tiktok'] ?? '', $l->followers, $l->rating, $l->reviews_count, $l->status, $l->summary, $l->note]));
     }
 
     // ── Helpers ──
@@ -445,7 +499,7 @@ class LeadController extends Controller
     {
         return ['id' => $l->id, 'name' => $l->name, 'category' => $l->category, 'segment' => $l->segment, 'country' => $l->country, 'city' => $l->city,
             'phone' => $l->phone, 'website' => $l->website, 'domain' => $l->domain, 'emails' => $l->emails ?? [], 'socials' => (object) ($l->socials ?? []),
-            'summary' => $l->summary, 'rating' => $l->rating, 'reviews_count' => $l->reviews_count, 'score' => $l->score, 'score_reasons' => $l->score_reasons ?? [],
+            'summary' => $l->summary, 'rating' => $l->rating, 'reviews_count' => $l->reviews_count, 'followers' => $l->followers, 'score' => $l->score, 'score_reasons' => $l->score_reasons ?? [],
             'ai_scored' => $l->ai_scored, 'status' => $l->status, 'starred' => $l->starred, 'enrich_status' => $l->enrich_status, 'source' => $l->source,
             'company_id' => $l->company_id, 'contacted_at' => $l->contacted_at, 'created_at' => $l->created_at,
             'next_follow_up_at' => $l->next_follow_up_at, 'email_checks' => (object) ($l->email_checks ?? []), 'lat' => $l->lat, 'lng' => $l->lng];

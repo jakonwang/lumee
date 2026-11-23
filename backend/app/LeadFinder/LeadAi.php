@@ -97,7 +97,7 @@ class LeadAi
      * "帮我找墨西哥做手机维修的批发商" → a ready-to-run search: profile, country, cities and keywords
      * in the market's own language, plus a one-line explanation in Chinese.
      *
-     * @return array{industry: string, country: string, cities: string[], keywords: string[], explain: string}
+     * @return array{industry: string, country: string, cities: string[], keywords: string[], channels: string[], explain: string}
      */
     public function plan(Store $store, string $request): array
     {
@@ -110,6 +110,8 @@ class LeadAi
             .'Return JSON: industry = one profile key (use custom when no profile fits); country = one ISO code from the list (pick the best market if none is named); '
             .'cities = 1-4 major commercial cities in that country relevant to the request (empty only if the request asks for the whole country); '
             .'keywords = 3-6 search phrases a local person would type into Google Maps to find these businesses, in the local language, plus up to 2 in English; '
+            .'channels = where these buyers are easiest to find, 1-3 of: maps (shops with a physical location), web (company websites: importers, distributors, online stores), '
+            .'facebook, instagram, tiktok (small brands and online sellers that sell through social media), linkedin (larger importers and distributors); '
             .'explain = one short sentence in Simplified Chinese describing who will be searched for and where.';
         $data = $this->json($store, $prompt, [
             'type' => 'object',
@@ -118,15 +120,17 @@ class LeadAi
                 'country' => ['type' => 'string', 'enum' => array_keys(LeadProfiles::countries())],
                 'cities' => ['type' => 'array', 'items' => ['type' => 'string']],
                 'keywords' => ['type' => 'array', 'items' => ['type' => 'string']],
+                'channels' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => ['maps', 'web', 'facebook', 'instagram', 'tiktok', 'linkedin']]],
                 'explain' => ['type' => 'string'],
             ],
-            'required' => ['industry', 'country', 'cities', 'keywords', 'explain'],
+            'required' => ['industry', 'country', 'cities', 'keywords', 'channels', 'explain'],
             'additionalProperties' => false,
         ], 'low', 4000);
         $clean = fn ($list) => array_slice(array_values(array_filter(array_map(fn ($v) => mb_substr(trim((string) $v), 0, 80), (array) $list))), 0, 8);
 
         return ['industry' => $data['industry'], 'country' => $data['country'], 'cities' => $clean($data['cities']),
-            'keywords' => $clean($data['keywords']), 'explain' => mb_substr((string) $data['explain'], 0, 200)];
+            'keywords' => $clean($data['keywords']), 'channels' => array_values(array_unique(array_intersect((array) ($data['channels'] ?? []), ['maps', 'web', 'facebook', 'instagram', 'tiktok', 'linkedin']))) ?: ['maps'],
+            'explain' => mb_substr((string) $data['explain'], 0, 200)];
     }
 
     /** No AI key: a solid English template filled with what we know. */

@@ -3,7 +3,7 @@ import { t } from '@/i18n'
 export interface LeadRow {
   id: number; name: string; category: string | null; segment: Segment; country: string | null; city: string | null
   phone: string | null; website: string | null; domain: string | null; emails: string[]; socials: Record<string, string>
-  summary: string | null; rating: number | null; reviews_count: number | null; score: number; score_reasons: string[]
+  summary: string | null; rating: number | null; reviews_count: number | null; followers: number | null; score: number; score_reasons: string[]
   ai_scored: boolean; status: LeadStatus; starred: boolean; enrich_status: string; source: string; company_id: number | null
   contacted_at: string | null; created_at: string; next_follow_up_at: string | null
   email_checks: Record<string, EmailCheck>; lat: number | null; lng: number | null
@@ -13,10 +13,12 @@ export interface MapLead { id: number; name: string; score: number; segment: Seg
 export interface LeadDetail extends LeadRow {
   address: string | null; phones: string[]; lat: number | null; lng: number | null; signals: string[]; enrich_error: string | null
   note: string | null; search: { id: number; name: string; industry: string } | null; has_site_text: boolean
+  contacts: { email: string; name: string | null; position: string | null; type: string | null }[]
   activities: { id: number; type: string; body: string | null; created_at: string }[]
 }
 export interface LeadSearch {
-  id: number; name: string; industry: string; keywords: string[]; country: string; cities: string[]; source: 'google' | 'osm' | 'manual'
+  id: number; name: string; industry: string; keywords: string[]; country: string; cities: string[]; source: 'google' | 'osm' | 'web' | 'manual'
+  channels: WebChannel[] | null
   status: 'queued' | 'running' | 'done' | 'failed'; stage: string | null; found: number; new_leads: number; enriched: number; to_enrich: number
   error: string | null; created_at: string; finished_at: string | null
 }
@@ -25,6 +27,18 @@ export interface Sender { company: string; name: string; title: string; products
 export interface LeadSettings {
   google_key_set: boolean; anthropic_key_set: boolean; google_platform: boolean; anthropic_platform: boolean
   google_ready: boolean; ai_ready: boolean; ai_auto: boolean; anthropic_workspace: string | null; sender: Sender
+  serp_ready: boolean; meta_token_set: boolean; ig_user_id: string | null; instagram_ready: boolean; hunter_key_set: boolean; hunter_ready: boolean
+}
+/** Where a search looks: maps (Google / OpenStreetMap) or Google web results of company sites and public social profiles. */
+export type WebChannel = 'web' | 'facebook' | 'instagram' | 'linkedin' | 'tiktok'
+export type Channel = 'maps' | WebChannel
+export const CHANNEL_LABELS: Record<Channel, string> = {
+  maps: t('地图商家'), web: t('公司官网'), facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', tiktok: 'TikTok',
+}
+/** "12.5K" */
+export function compactNumber(n: number | null | undefined): string {
+  if (!n) return ''
+  return n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}K` : String(n)
 }
 export interface LeadMeta {
   profiles: { key: string; label: string; pitch: string; buyers: string[] }[]

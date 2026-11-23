@@ -10,13 +10,15 @@ const props = defineProps<{ show: boolean; settings: LeadSettings }>()
 const emit = defineEmits<{ (e: 'update:show', v: boolean): void; (e: 'saved', s: LeadSettings): void }>()
 const message = useMessage()
 
-const form = reactive({ google_key: '', anthropic_key: '', anthropic_workspace: '', ai_auto: true, sender: {} as Sender })
-const clear = reactive({ google: false, anthropic: false })
+const form = reactive({ google_key: '', anthropic_key: '', anthropic_workspace: '', ai_auto: true, sender: {} as Sender,
+  serpapi_key: '', meta_token: '', ig_user_id: '', hunter_key: '' })
+const clear = reactive({ google: false, anthropic: false, serpapi: false, meta: false, hunter: false })
 const saving = ref(false)
 watch(() => props.show, (v) => {
   if (!v) return
-  Object.assign(form, { google_key: '', anthropic_key: '', anthropic_workspace: props.settings.anthropic_workspace ?? '', ai_auto: props.settings.ai_auto, sender: { ...props.settings.sender } })
-  Object.assign(clear, { google: false, anthropic: false })
+  Object.assign(form, { google_key: '', anthropic_key: '', anthropic_workspace: props.settings.anthropic_workspace ?? '', ai_auto: props.settings.ai_auto, sender: { ...props.settings.sender },
+    serpapi_key: '', meta_token: '', ig_user_id: props.settings.ig_user_id ?? '', hunter_key: '' })
+  Object.assign(clear, { google: false, anthropic: false, serpapi: false, meta: false, hunter: false })
 })
 
 async function persist(): Promise<LeadSettings> {
@@ -24,6 +26,9 @@ async function persist(): Promise<LeadSettings> {
     google_key: form.google_key || null, anthropic_key: form.anthropic_key || null,
     clear_google_key: clear.google, clear_anthropic_key: clear.anthropic, anthropic_workspace: form.anthropic_workspace.trim() || null,
     ai_auto: form.ai_auto, sender: form.sender,
+    serpapi_key: form.serpapi_key || null, clear_serpapi_key: clear.serpapi,
+    meta_token: form.meta_token || null, clear_meta_token: clear.meta, ig_user_id: form.ig_user_id.trim(),
+    hunter_key: form.hunter_key || null, clear_hunter_key: clear.hunter,
   })
   emit('saved', data.settings)
   return data.settings
@@ -38,15 +43,17 @@ async function save() {
 }
 
 // "Test connection": saves a newly typed key first, then makes one real request with it
-const testing = ref<'' | 'google' | 'anthropic'>('')
-const result = reactive<Record<string, { ok: boolean; message: string } | null>>({ google: null, anthropic: null })
-async function test(service: 'google' | 'anthropic') {
+type Service = 'google' | 'anthropic' | 'serpapi' | 'instagram' | 'hunter'
+const testing = ref<'' | Service>('')
+const result = reactive<Record<string, { ok: boolean; message: string } | null>>({ google: null, anthropic: null, serpapi: null, instagram: null, hunter: null })
+async function test(service: Service) {
   testing.value = service
   result[service] = null
   try {
-    if (form.google_key || form.anthropic_key || form.anthropic_workspace.trim() !== (props.settings.anthropic_workspace ?? '')) {
+    if (form.google_key || form.anthropic_key || form.serpapi_key || form.meta_token || form.hunter_key
+      || form.anthropic_workspace.trim() !== (props.settings.anthropic_workspace ?? '') || form.ig_user_id.trim() !== (props.settings.ig_user_id ?? '')) {
       await persist()
-      Object.assign(form, { google_key: '', anthropic_key: '' })
+      Object.assign(form, { google_key: '', anthropic_key: '', serpapi_key: '', meta_token: '', hunter_key: '' })
     }
     result[service] = (await http.post('/lead-finder/settings/test', { service }, { timeout: 90000 })).data
   } catch (e) { result[service] = { ok: false, message: errorMessage(e) } } finally { testing.value = '' }
@@ -75,6 +82,48 @@ async function test(service: 'google' | 'anthropic') {
         <span class="state on">{{ t('免费，无需配置') }}</span>
       </div>
       <p class="muted">{{ t('开源地图的商家数据，适合先体验。欧美城市覆盖较好，电话和官网信息比 Google 少。') }}</p>
+    </div>
+
+    <div class="sec">{{ t('官网和社媒渠道') }}</div>
+    <div class="src">
+      <div class="src-head">
+        <div><b>SerpApi</b> <span class="muted">· Google {{ t('搜索') }}</span></div>
+        <span class="state" :class="{ on: settings.serp_ready }">{{ settings.serp_ready ? t('已配置') : t('未配置') }}</span>
+      </div>
+      <p class="muted">{{ t('用 Google 搜索结果找公司官网，以及公开的 Facebook 主页、Instagram、LinkedIn 公司页和 TikTok 账号，读取简介里的联系方式。和「选品雷达」共用同一个 Key（serpapi.com），按搜索次数付费。') }}</p>
+      <div class="key-row">
+        <NInput v-model:value="form.serpapi_key" type="password" show-password-on="click" :placeholder="settings.serp_ready ? t('已保存（留空则不修改）') : 'SerpApi Key'" :disabled="clear.serpapi" />
+        <NButton v-if="settings.serp_ready" quaternary size="small" @click="clear.serpapi = !clear.serpapi">{{ clear.serpapi ? t('撤销') : t('移除') }}</NButton>
+        <NButton size="small" :loading="testing === 'serpapi'" :disabled="clear.serpapi || (!settings.serp_ready && !form.serpapi_key)" @click="test('serpapi')">{{ t('测试连接') }}</NButton>
+      </div>
+      <p v-if="result.serpapi" class="result" :class="{ ok: result.serpapi.ok }">{{ result.serpapi.message }}</p>
+    </div>
+    <div class="src">
+      <div class="src-head">
+        <div><b>Instagram</b> <span class="muted">· Business Discovery</span></div>
+        <span class="state" :class="{ on: settings.instagram_ready }">{{ settings.instagram_ready ? t('已配置') : t('可选') }}</span>
+      </div>
+      <p class="muted">{{ t('在 Instagram 上找到的商家，读取它的简介、官网链接和粉丝数（只适用于商业账号和创作者账号）。需要你自己的 Instagram 商业账号 ID 和 Meta 开发者平台的访问令牌。') }}</p>
+      <div class="key-row">
+        <NInput v-model:value="form.meta_token" type="password" show-password-on="click" :placeholder="settings.meta_token_set ? t('访问令牌已保存（留空则不修改）') : t('Meta 访问令牌')" :disabled="clear.meta" />
+        <NInput v-model:value="form.ig_user_id" :placeholder="t('Instagram 账号 ID')" style="max-width: 190px" :disabled="clear.meta" />
+        <NButton v-if="settings.meta_token_set" quaternary size="small" @click="clear.meta = !clear.meta">{{ clear.meta ? t('撤销') : t('移除') }}</NButton>
+        <NButton size="small" :loading="testing === 'instagram'" :disabled="clear.meta || (!settings.instagram_ready && !(form.meta_token || settings.meta_token_set))" @click="test('instagram')">{{ t('测试连接') }}</NButton>
+      </div>
+      <p v-if="result.instagram" class="result" :class="{ ok: result.instagram.ok }">{{ result.instagram.message }}</p>
+    </div>
+    <div class="src">
+      <div class="src-head">
+        <div><b>Hunter.io</b> <span class="muted">· {{ t('邮箱查找') }}</span></div>
+        <span class="state" :class="{ on: settings.hunter_ready }">{{ settings.hunter_ready ? t('已配置') : t('可选') }}</span>
+      </div>
+      <p class="muted">{{ t('官网没有公开邮箱时，按公司域名查找网上公开过的工作邮箱，包括采购、销售负责人的姓名和职位。按查询次数计费，有免费额度。') }}</p>
+      <div class="key-row">
+        <NInput v-model:value="form.hunter_key" type="password" show-password-on="click" :placeholder="settings.hunter_key_set ? t('已保存（留空则不修改）') : 'Hunter.io API Key'" :disabled="clear.hunter" />
+        <NButton v-if="settings.hunter_key_set" quaternary size="small" @click="clear.hunter = !clear.hunter">{{ clear.hunter ? t('撤销') : t('移除') }}</NButton>
+        <NButton size="small" :loading="testing === 'hunter'" :disabled="clear.hunter || (!settings.hunter_ready && !form.hunter_key)" @click="test('hunter')">{{ t('测试连接') }}</NButton>
+      </div>
+      <p v-if="result.hunter" class="result" :class="{ ok: result.hunter.ok }">{{ result.hunter.message }}</p>
     </div>
 
     <div class="sec">{{ t('AI 分析与开发信') }}</div>
@@ -128,7 +177,8 @@ async function test(service: 'google' | 'anthropic') {
 .src p { margin: 6px 0 0; }
 .state { font-size: 12px; color: var(--ink-muted); }
 .state.on { color: var(--brand-700); font-weight: 500; }
-.key-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.key-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.key-row > .n-input:first-child { flex: 1 1 220px; }
 .toggle { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .ws { display: grid; grid-template-columns: 200px 1fr; gap: 10px; align-items: center; margin-top: 8px; }
 @media (max-width: 560px) { .ws { grid-template-columns: 1fr; } }

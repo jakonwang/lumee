@@ -4,6 +4,8 @@ namespace App\LeadFinder;
 
 use App\LeadFinder\Sources\GooglePlacesSource;
 use App\LeadFinder\Sources\OsmSource;
+use App\LeadFinder\Sources\WebSearchSource;
+use App\Research\SerpApi;
 use App\Models\Lead;
 use App\Models\LeadSearch;
 use App\Models\Store;
@@ -12,10 +14,15 @@ use RuntimeException;
 /** The steps of a lead search: find places → save (deduplicated) → read their sites → score. */
 class LeadPipeline
 {
-    public function __construct(private SiteEnricher $enricher, private LeadScorer $scorer, private LeadAi $ai, private EmailChecker $emails) {}
+    public function __construct(private SiteEnricher $enricher, private LeadScorer $scorer, private LeadAi $ai, private EmailChecker $emails, private ProfileEnricher $profiles) {}
 
     public function find(Store $store, LeadSearch $search, int $limit, ?callable $progress = null): array
     {
+        if ($search->source === 'web') {
+            $api = SerpApi::for($store) ?? throw new RuntimeException('还没有配置 SerpApi Key（在「获客设置」里填写）');
+
+            return (new WebSearchSource($api))->search($search->channels ?? ['web'], $search->keywords, $search->country, $search->cities ?? [], $limit, $progress);
+        }
         if ($search->source === 'google') {
             $key = LeadSettings::googleKey($store) ?? throw new RuntimeException('还没有配置 Google 地图 API Key');
 
@@ -43,13 +50,14 @@ class LeadPipeline
             'name' => $place['name'], 'category' => $place['category'] ?: null, 'country' => $place['country'] ?? null, 'city' => $place['city'] ?? null,
             'address' => $place['address'] ?? null, 'lat' => $place['lat'] ?? null, 'lng' => $place['lng'] ?? null, 'phone' => $place['phone'] ?? null,
             'website' => $place['website'] ?? null, 'domain' => $domain, 'rating' => $place['rating'] ?? null, 'reviews_count' => $place['reviews_count'] ?? null,
+            'followers' => $place['followers'] ?? null, 'summary' => $place['summary'] ?? null,
         ], fn ($v) => $v !== null && $v !== '');
         $emails = $place['emails'] ?? [];
         $socials = $place['socials'] ?? [];
 
         if ($isNew) {
             $lead = Lead::create([...$fields, 'source' => $place['source'], 'source_id' => $place['source_id'], 'lead_search_id' => $search?->id,
-                'emails' => $emails, 'socials' => $socials, 'enrich_status' => $domain ? 'pending' : 'skipped']);
+                'emails' => $emails, 'socials' => $socials, 'enrich_status' => $domain || isset($socials['instagram']) ? 'pending' : 'skipped']);
             $lead->activities()->create(['type' => 'created', 'body' => $search ? '来自搜索：'.$search->name : '手动添加']);
         } else {
             // Keep what the merchant already did with it (status, notes); fill gaps from the new listing
@@ -67,8 +75,33 @@ class LeadPipeline
 
     public function enrich(Lead $lead): void
     {
+        $store = app(\App\Tenancy\CurrentStore::class)->getOrFail();
+        $notes = [];
+        // Found on Instagram without a website: the business profile usually links one
+        if (! $lead->website && ($handle = ProfileEnricher::instagramHandle($lead)) && ProfileEnricher::instagramReady($store)) {
+            try {
+                if ($ig = $this->profiles->instagram($store, $handle)) {
+                    $site = $ig['website'] && ($host = SafeFetcher::domain($ig['website'])) && ! SiteEnricher::socialKind($host) ? $ig['website'] : null;
+                    $bio = WebSearchSource::contacts((string) $ig['biography']);
+                    $lead->fill(array_filter([
+                        'website' => $site, 'domain' => $site ? SafeFetcher::domain($site) : null,
+                        'followers' => $ig['followers'], 'summary' => $lead->summary ?: ($ig['biography'] ? mb_substr($ig['biography'], 0, 500) : null),
+                        'phone' => $lead->phone ?: ($bio['phone'] ?? null),
+                    ], fn ($v) => $v !== null));
+                    $lead->emails = array_values(array_unique([...($lead->emails ?? []), ...($bio['emails'] ?? [])]));
+                    $lead->socials = ($lead->socials ?? []) + ($bio['socials'] ?? []);
+                } else {
+                    $notes[] = 'Instagram 不是商业账号，读不到资料';
+                }
+            } catch (\Throwable $e) {
+                $notes[] = $e->getMessage();
+            }
+        }
         if (! $lead->website) {
             $lead->enrich_status = 'skipped';
+            if ($notes) {
+                $lead->enrich_error = mb_substr(implode('；', $notes), 0, 200);
+            }
             $this->checkEmails($lead);
             $lead->save();
 
@@ -94,8 +127,31 @@ class LeadPipeline
         } catch (\Throwable $e) {
             $lead->fill(['enrich_status' => 'failed', 'enrich_error' => mb_substr($e->getMessage(), 0, 200), 'enriched_at' => now()]);
         }
+        $this->hunter($store, $lead, $notes);
+        if ($notes && $lead->enrich_status !== 'failed') {
+            $lead->enrich_error = mb_substr(implode('；', $notes), 0, 200);
+        }
         $this->checkEmails($lead);
         $lead->save();
+    }
+
+    /** No work email published on the site: Hunter.io lists the ones that appear elsewhere on the web, with names and job titles. */
+    private function hunter(Store $store, Lead $lead, array &$notes): void
+    {
+        $own = $lead->domain && collect($lead->emails ?? [])->contains(fn ($e) => str_ends_with($e, '@'.$lead->domain));
+        if (! $lead->domain || $own || ! ProfileEnricher::hunterReady($store)) {
+            return;
+        }
+        try {
+            $found = $this->profiles->hunter($store, $lead->domain);
+            $lead->emails = array_values(array_unique([...array_column($found, 'email'), ...($lead->emails ?? [])]));
+            $people = array_values(array_filter($found, fn ($f) => $f['name']));
+            if ($people) {
+                $lead->contacts = array_slice($people, 0, 5);
+            }
+        } catch (\Throwable $e) {
+            $notes[] = $e->getMessage();
+        }
     }
 
     /** Mark each email as deliverable / role / personal / free; propose info@domain when none was published. */

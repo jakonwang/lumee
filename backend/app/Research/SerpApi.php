@@ -10,8 +10,8 @@ use RuntimeException;
 
 /**
  * Outside evidence through SerpApi (serpapi.com, the merchant's own key, billed per search):
- * Google Trends interest over the last 3 months, and Google Shopping results (how many sellers,
- * at what prices) in the market's country.
+ * Google Trends interest over the last 3 months, Google Shopping results (how many sellers,
+ * at what prices) in the market's country, and Google web results (lead finder channels).
  */
 class SerpApi
 {
@@ -62,6 +62,12 @@ class SerpApi
             'examples' => array_map(fn ($r) => ['title' => mb_substr((string) ($r['title'] ?? ''), 0, 120), 'price' => $r['price'] ?? null,
                 'source' => $r['source'] ?? null, 'thumbnail' => $r['thumbnail'] ?? null], array_slice($results, 0, 6)),
         ];
+    }
+
+    /** Google web results (organic_results) for a query in a country and language. */
+    public function google(string $q, string $country, string $language, int $start = 0): array
+    {
+        return $this->get(['engine' => 'google', 'q' => $q, 'gl' => strtolower($country), 'hl' => $language, 'start' => $start ?: null]);
     }
 
     private function get(array $params): array

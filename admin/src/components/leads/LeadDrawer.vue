@@ -14,7 +14,7 @@ import {
 } from '@vicons/ionicons5'
 import { http, errorMessage } from '@/api/http'
 import { formatDate } from '@/api/orders'
-import { SEGMENT_LABELS, SOCIAL_LABELS, STATUS_LABELS, STATUS_OPTIONS, dueText, emailBadge, flag, type LeadDetail, type LeadStatus } from '@/api/leads'
+import { SEGMENT_LABELS, SOCIAL_LABELS, STATUS_LABELS, STATUS_OPTIONS, compactNumber, dueText, emailBadge, flag, type LeadDetail, type LeadStatus } from '@/api/leads'
 import ScoreRing from './ScoreRing.vue'
 import { t } from '@/i18n'
 
@@ -167,6 +167,7 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
               <span class="seg">{{ SEGMENT_LABELS[lead.segment] }}</span>
               <span>{{ flag(lead.country) }} {{ [lead.city, countryName(lead.country)].filter(Boolean).join(' · ') }}</span>
               <span v-if="lead.rating">★ {{ lead.rating }} ({{ lead.reviews_count }})</span>
+              <span v-if="lead.followers">{{ t('{0} 粉丝', [compactNumber(lead.followers)]) }}</span>
             </div>
           </div>
         </div>
@@ -258,6 +259,12 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
             </div>
             <div v-if="Object.keys(lead.socials).filter((k) => k !== 'whatsapp').length" class="socials">
               <a v-for="(url, k) in lead.socials" v-show="k !== 'whatsapp'" :key="k" :href="url" target="_blank" rel="noopener" class="chip">{{ SOCIAL_LABELS[k] ?? k }}</a>
+            </div>
+            <div v-if="lead.contacts?.length" class="people">
+              <div v-for="c in lead.contacts" :key="c.email" class="person">
+                <span class="p-name">{{ c.name }}</span><span v-if="c.position" class="muted"> · {{ c.position }}</span>
+                <a :href="`mailto:${c.email}`" class="p-mail">{{ c.email }}</a>
+              </div>
             </div>
             <p v-if="!lead.emails.length && !lead.phone" class="muted">{{ t('还没有找到联系方式。') }}{{ lead.website ? t('可以点「重新抓取」再试一次，或打开官网查看。') : '' }}</p>
           </div>
@@ -377,6 +384,10 @@ const reasonsOk = (r: string) => !/没有看到/.test(r)
 .ghost { margin-left: auto; border: 0; background: none; color: var(--ink-muted); cursor: pointer; padding: 4px; border-radius: 6px; display: inline-flex; }
 .ghost:hover { background: #E8EEEA; color: var(--ink); }
 .socials { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px 0; }
+.people { padding: 8px 8px 0; display: grid; gap: 4px; font-size: 13px; }
+.person { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.p-name { font-weight: 500; color: var(--ink); }
+.p-mail { margin-left: auto; color: var(--brand-700); }
 .chip { font-size: 12px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--border); color: var(--ink); text-decoration: none; }
 .chip:hover { border-color: var(--brand-300); color: var(--brand-700); }
 .facts { display: grid; gap: 6px; font-size: 13px; }

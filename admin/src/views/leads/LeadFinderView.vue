@@ -14,10 +14,7 @@ import {
 } from '@vicons/ionicons5'
 import { http, errorMessage } from '@/api/http'
 import { download } from '@/utils/download'
-import {
-  SEGMENT_LABELS, SEGMENT_OPTIONS, STATUS_LABELS, STATUS_OPTIONS, dueText, emailBadge, flag,
-  type LeadMeta, type LeadRow, type LeadSearch, type LeadSettings, type LeadStats, type MapLead,
-} from '@/api/leads'
+import { SEGMENT_LABELS, SEGMENT_OPTIONS, STATUS_LABELS, STATUS_OPTIONS, dueText, emailBadge, flag, type LeadMeta, type LeadRow, type LeadSearch, type LeadSettings, type LeadStats, type MapLead, CHANNEL_LABELS, type Channel, type WebChannel } from '@/api/leads'
 import ScoreRing from '@/components/leads/ScoreRing.vue'
 import LeadDrawer from '@/components/leads/LeadDrawer.vue'
 const LeadMap = defineAsyncComponent(() => import('@/components/leads/LeadMap.vue'))
@@ -43,7 +40,7 @@ async function aiPlan() {
     const { data } = await http.post('/lead-finder/plan', { text: aiText.value }, { timeout: 90000 })
     const p = data.data
     skipReset = true
-    Object.assign(form, { industry: p.industry, country: p.country, cities: p.cities, keywords: p.keywords })
+    Object.assign(form, { industry: p.industry, country: p.country, cities: p.cities, keywords: p.keywords, channels: p.channels?.length ? p.channels : ['maps'] })
     await nextTick()
     skipReset = false
     planNote.value = p.explain
@@ -53,7 +50,12 @@ async function aiPlan() {
 let skipReset = false
 
 // ---------- New search ----------
-const form = reactive({ industry: 'phone_film', country: 'US', cities: [] as string[], keywords: [] as string[], source: 'osm' as 'google' | 'osm', limit: 60 })
+const form = reactive({ industry: 'phone_film', country: 'US', cities: [] as string[], keywords: [] as string[], source: 'osm' as 'google' | 'osm', limit: 60, channels: ['maps'] as Channel[] })
+const allChannels = Object.keys(CHANNEL_LABELS) as Channel[]
+const webChannels = computed(() => form.channels.filter((c): c is WebChannel => c !== 'maps'))
+function toggleChannel(c: Channel) {
+  form.channels = form.channels.includes(c) ? form.channels.filter((x) => x !== c) : [...form.channels, c]
+}
 const composerOpen = ref(true)
 const starting = ref(false)
 const profile = computed(() => meta.value?.profiles.find((p) => p.key === form.industry))
@@ -70,16 +72,26 @@ function resetKeywords() {
 watch(() => [form.industry, form.country], resetKeywords)
 const estimate = computed(() => {
   const areas = Math.max(1, form.cities.length)
-  if (form.source === 'google') return t('约 {0} 次 Google 地图请求', [Math.min(areas * form.keywords.length * 3, Math.ceil(form.limit / 20) * areas * form.keywords.length)])
-  return t('免费')
+  const parts: string[] = []
+  if (form.channels.includes('maps')) {
+    parts.push(form.source === 'google' ? t('约 {0} 次 Google 地图请求', [Math.min(areas * form.keywords.length * 3, Math.ceil(form.limit / 20) * areas * form.keywords.length)]) : t('地图免费'))
+  }
+  if (webChannels.value.length) parts.push(t('最多 {0} 次 SerpApi 搜索', [Math.min(40, webChannels.value.length * areas * form.keywords.length)]))
+  return parts.join(' · ')
 })
 
 async function startSearch() {
   if (!form.keywords.length) return message.warning(t('请至少填写一个搜索关键词'))
-  if (form.source === 'google' && !settings.value?.google_ready) { showSettings.value = true; return message.info(t('请先填写 Google 地图 API Key')) }
+  if (!form.channels.length) return message.warning(t('请至少选择一个渠道'))
+  const maps = form.channels.includes('maps')
+  if (maps && form.source === 'google' && !settings.value?.google_ready) { showSettings.value = true; return message.info(t('请先填写 Google 地图 API Key')) }
+  if (webChannels.value.length && !settings.value?.serp_ready) { showSettings.value = true; return message.info(t('搜索官网和社媒需要先填写 SerpApi Key')) }
   starting.value = true
   try {
-    await http.post('/lead-searches', form)
+    // Maps and web/social are separate searches (each shows its own progress)
+    const base = { industry: form.industry, country: form.country, cities: form.cities, keywords: form.keywords, limit: form.limit }
+    if (maps) await http.post('/lead-searches', { ...base, source: form.source })
+    if (webChannels.value.length) await http.post('/lead-searches', { ...base, source: 'web', channels: webChannels.value })
     message.success(t('已开始搜索，结果会陆续出现在下方'))
     composerOpen.value = false
     loadSearches()
@@ -381,11 +393,17 @@ onBeforeUnmount(() => clearTimeout(poll))
         </div>
         <div class="grid2 bottom">
           <div class="field">
-            <label>{{ t('数据来源') }}</label>
-            <NRadioGroup v-model:value="form.source">
+            <label>{{ t('在哪里找') }} <span class="muted">{{ t('（可多选）') }}</span></label>
+            <div class="channels" role="group" :aria-label="t('在哪里找')">
+              <button v-for="c in allChannels" :key="c" type="button" class="pchip" :class="{ on: form.channels.includes(c) }" :aria-pressed="form.channels.includes(c)" @click="toggleChannel(c)">
+                {{ CHANNEL_LABELS[c] }}<span v-if="c !== 'maps' && !settings?.serp_ready" class="need">{{ t('需配置') }}</span>
+              </button>
+            </div>
+            <NRadioGroup v-if="form.channels.includes('maps')" v-model:value="form.source" size="small" class="maps-src">
               <NRadioButton value="google">Google {{ t('地图') }}{{ settings?.google_ready ? '' : ` · ${t('需配置')}` }}</NRadioButton>
               <NRadioButton value="osm">OpenStreetMap · {{ t('免费') }}</NRadioButton>
             </NRadioGroup>
+            <p v-if="webChannels.length" class="muted hint">{{ t('通过 Google 搜索结果找公司官网和公开的社媒主页，读取简介里的邮箱、电话、WhatsApp 和官网。不会登录或抓取社媒网站本身。') }}</p>
           </div>
           <div class="field">
             <label>{{ t('最多找多少家') }}</label>
@@ -604,4 +622,8 @@ onBeforeUnmount(() => clearTimeout(poll))
 
 @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } .kpi.wide { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: 1fr 1fr; } }
+.channels { display: flex; flex-wrap: wrap; gap: 6px; }
+.channels .need { margin-left: 6px; font-size: 11px; color: var(--ink-muted); }
+.maps-src { margin-top: 8px; }
+.hint { margin: 8px 0 0; font-size: 12px; line-height: 1.6; }
 </style>

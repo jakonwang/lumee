@@ -15,13 +15,13 @@ class Lead extends Model
     public const STATUSES = ['new', 'contacted', 'replied', 'qualified', 'won', 'lost'];
 
     protected $fillable = ['lead_search_id', 'source', 'source_id', 'name', 'category', 'segment', 'country', 'city', 'address', 'lat', 'lng', 'phone',
-        'website', 'domain', 'emails', 'phones', 'socials', 'summary', 'site_text', 'signals', 'rating', 'reviews_count', 'score', 'score_reasons',
+        'website', 'domain', 'emails', 'phones', 'socials', 'summary', 'site_text', 'signals', 'rating', 'reviews_count', 'followers', 'contacts', 'score', 'score_reasons',
         'ai_scored', 'status', 'starred', 'note', 'enrich_status', 'enrich_error', 'enriched_at', 'contacted_at', 'next_follow_up_at', 'email_checks', 'company_id'];
 
     protected function casts(): array
     {
         return ['emails' => 'array', 'phones' => 'array', 'socials' => 'array', 'signals' => 'array', 'score_reasons' => 'array', 'ai_scored' => 'boolean',
-            'starred' => 'boolean', 'rating' => 'float', 'lat' => 'float', 'lng' => 'float', 'reviews_count' => 'integer', 'score' => 'integer',
+            'starred' => 'boolean', 'rating' => 'float', 'lat' => 'float', 'lng' => 'float', 'reviews_count' => 'integer', 'followers' => 'integer', 'contacts' => 'array', 'score' => 'integer',
             'enriched_at' => 'datetime', 'contacted_at' => 'datetime', 'next_follow_up_at' => 'datetime', 'email_checks' => 'array'];
     }
 

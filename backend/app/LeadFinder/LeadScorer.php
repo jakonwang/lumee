@@ -88,6 +88,11 @@ class LeadScorer
             if ($lead->reviews_count >= 100) {
                 $reasons[] = "{$lead->reviews_count} 条评价，规模较大";
             }
+        } elseif ($lead->followers) {
+            $rep = $lead->followers >= 10000 ? 8 : ($lead->followers >= 1000 ? 5 : 2);
+            if ($lead->followers >= 1000) {
+                $reasons[] = '社媒粉丝 '.number_format($lead->followers);
+            }
         } elseif ($lead->website) {
             $rep = 3;
         }
