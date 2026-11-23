@@ -94,6 +94,13 @@ Route::prefix('admin')->group(function () {
 
             Route::middleware('perm:analytics')->get('analytics', AnalyticsController::class);
             Route::middleware('perm:analytics')->get('analytics/retention', \App\Http\Controllers\Admin\RetentionController::class);
+            Route::middleware('perm:analytics')->group(function () {   // ad performance: spend vs orders per platform, market, campaign
+                $ads = \App\Http\Controllers\Admin\AdPerformanceController::class;
+                Route::get('ads/report', [$ads, 'report']);
+                Route::post('ads/spend/import', [$ads, 'import'])->middleware('throttle:20,1');
+                Route::post('ads/spend', [$ads, 'store']);
+                Route::delete('ads/spend/{id}', [$ads, 'destroy'])->whereNumber('id');
+            });
 
             Route::middleware('perm:products')->group(function () {
                 // Bulk import/export (registered before the resource so "products/export" isn't read as an id)

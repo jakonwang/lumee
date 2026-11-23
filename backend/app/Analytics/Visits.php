@@ -205,7 +205,42 @@ class Visits
             default => 'direct',
         };
 
-        return [...$utm, 'source' => $source, 'referrer_host' => $ref !== '' ? Str::limit($ref, 115, '') : null];
+        return [...$utm, 'source' => $source, 'referrer_host' => $ref !== '' ? Str::limit($ref, 115, '') : null,
+            'ad_platform' => self::adPlatform($this->req()->query(), $ref)];
+    }
+
+    /**
+     * Which ad / social platform a visit came from (paid or not: `source` says that): its click id
+     * (gclid, fbclid, ttclid, msclkid…), else utm_source, else the referring site.
+     */
+    public static function adPlatform(array $query, string $referrer): ?string
+    {
+        $has = fn (string ...$keys) => collect($keys)->contains(fn ($k) => trim((string) ($query[$k] ?? '')) !== '');
+        $utm = strtolower(trim((string) ($query['utm_source'] ?? '')));
+        $by = fn (array $words) => $utm !== '' && collect($words)->contains(fn ($w) => $utm === $w || str_starts_with($utm, $w));
+        $ref = fn (string $pattern) => $referrer !== '' && (bool) preg_match($pattern, $referrer);
+
+        return match (true) {
+            $has('gclid', 'gbraid', 'wbraid', 'gad_source') => 'google',
+            $has('fbclid') => 'meta',
+            $has('ttclid') => 'tiktok',
+            $has('msclkid') => 'bing',
+            $has('epik') => 'pinterest',
+            $has('ScCid', 'sccid') => 'snapchat',
+            $by(['google', 'adwords', 'youtube']) => 'google',
+            $by(['facebook', 'fb', 'instagram', 'ig', 'meta']) => 'meta',
+            $by(['tiktok']) => 'tiktok',
+            $by(['bing', 'microsoft']) => 'bing',
+            $by(['pinterest']) => 'pinterest',
+            $by(['snapchat']) => 'snapchat',
+            $utm !== '' => null,   // tagged with something we don't know: not guessed from the referrer
+            $ref('/(^|\.)google\.|(^|\.)youtube\.com$|youtu\.be$/') => 'google',
+            $ref('/(^|\.)(facebook|fb|instagram)\.com$/') => 'meta',
+            $ref('/(^|\.)tiktok\.com$/') => 'tiktok',
+            $ref('/(^|\.)bing\.com$/') => 'bing',
+            $ref('/(^|\.)pinterest\./') => 'pinterest',
+            default => null,
+        };
     }
 
     /** Country from a CDN header; without one, the region in the browser language (en-US → US) as an estimate. */

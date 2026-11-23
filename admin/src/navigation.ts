@@ -84,6 +84,7 @@ export const sections: NavSection[] = [
     key: 'analytics', label: t('数据分析'), icon: BarChartOutline,
     pages: [
       { name: 'analytics', label: t('概览'), keywords: '访客 转化 报表 analytics visitors conversion reports' },
+      { name: 'ad-performance', label: t('广告效果'), keywords: 'ROAS 广告花费 投放 每单成本 ads roas spend campaigns google meta tiktok' },
       { name: 'design-performance', label: t('装修效果'), keywords: 'A/B 测试 改版建议 design ab test insights' },
     ],
   },

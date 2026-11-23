@@ -42,6 +42,7 @@ export const router = createRouter({
         { path: 'marketing/promotions/:id(\\d+)', name: 'promotion-edit', component: () => import('@/views/marketing/PromotionEditView.vue'), meta: { perm: 'marketing', title: t('编辑活动'), menu: 'promotions' } },
         { path: 'marketing', name: 'marketing', component: () => import('@/views/marketing/DiscountListView.vue'), meta: { perm: 'marketing', title: t('营销 · 折扣码') } },
         { path: 'analytics', name: 'analytics', component: () => import('@/views/AnalyticsView.vue'), meta: { perm: 'analytics', title: t('数据分析') } },
+        { path: 'analytics/ads', name: 'ad-performance', component: () => import('@/views/analytics/AdPerformanceView.vue'), meta: { perm: 'analytics', title: t('数据分析 · 广告效果') } },
         { path: 'reviews', name: 'reviews', component: () => import('@/views/products/ReviewListView.vue'), meta: { perm: 'products', title: t('评论') } },
         { path: 'purchasing', name: 'purchasing', component: () => import('@/views/products/PurchasingView.vue'), meta: { perm: 'products', title: t('采购') } },
         { path: 'wholesale-catalogs', name: 'wholesale-catalogs', component: () => import('@/views/products/WholesaleCatalogsView.vue'), meta: { perm: 'products', title: t('批发目录') } },
