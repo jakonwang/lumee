@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { NCard, NButton, NSelect, NInput, NTabs, NTab, NEmpty, NSpin, NPagination, NProgress, NAlert, useMessage } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
 import { t } from '@/i18n'
+import SettingsNav from '@/components/SettingsNav.vue'
 
 interface Field { key: string; label: string; source: string; multiline: boolean; value: string | null }
 interface Item { id: number; label: string; fields: Field[]; done: number; total: number }
@@ -108,10 +109,12 @@ onMounted(async () => {
 
 <template>
   <div>
+    <div class="eyebrow">Settings</div>
+    <h1 class="page-title">{{ t('设置') }}</h1>
+    <SettingsNav />
     <div class="head">
       <div>
-        <div class="eyebrow">Online store</div>
-        <h1 class="page-title">{{ t('翻译') }}</h1>
+        <h2 class="sub-title">{{ t('翻译') }}</h2>
         <p class="page-sub">{{ t('把商品、页面、菜单等内容翻译成其他语言。没有翻译的内容会显示默认语言。') }}</p>
       </div>
       <NSelect v-if="langOptions.length" v-model:value="locale" :options="langOptions" style="width: 180px" />
@@ -170,7 +173,8 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+.sub-title { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
 .layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
 .search { padding: 10px; border-bottom: 1px solid var(--border); }
 .row { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 10px 14px; border: 0; border-top: 1px solid var(--border); background: none; font: inherit; font-size: 13px; color: inherit; text-align: left; cursor: pointer; }

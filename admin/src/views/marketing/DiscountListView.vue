@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
+import DiscountSwitch from '@/components/DiscountSwitch.vue'
 import {
   NButton, NCard, NDataTable, NTag, NModal, NForm, NFormItem, NInput, NInputNumber, NRadioGroup, NRadioButton,
   NSwitch, NDatePicker, NEmpty, NSpace, useMessage, useDialog, type DataTableColumns,
@@ -178,6 +179,7 @@ onMounted(load)
 
 <template>
   <div>
+    <DiscountSwitch />
     <div class="head">
       <div>
         <div class="eyebrow">Marketing</div>

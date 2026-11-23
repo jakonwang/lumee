@@ -4,6 +4,7 @@ import { NCard, NForm, NFormItem, NInput, NButton, NSpin, NCheckbox, NIcon, NTag
 import { CopyOutline } from '@vicons/ionicons5'
 import { http, errorMessage } from '@/api/http'
 import { t } from '@/i18n'
+import SettingsNav from '@/components/SettingsNav.vue'
 
 interface Settings { ga4: string | null; meta: string | null; tiktok: string | null; consent: boolean }
 interface Feed { locale: string; name: string; url: string }
@@ -93,9 +94,10 @@ onMounted(load)
 <template>
   <div class="page">
     <div>
-      <div class="eyebrow">Marketing</div>
-      <h1 class="page-title">{{ t('追踪代码') }}</h1>
+      <div class="eyebrow">Settings</div>
+      <h1 class="page-title">{{ t('设置') }}</h1>
     </div>
+    <SettingsNav />
 
     <div v-if="loading" class="center"><NSpin /></div>
     <template v-else>

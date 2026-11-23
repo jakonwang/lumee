@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { h, onMounted, ref } from 'vue'
+import DiscountSwitch from '@/components/DiscountSwitch.vue'
 import { useRouter } from 'vue-router'
 import { NCard, NDataTable, NButton, NTag, NEmpty, NDropdown, type DataTableColumns } from 'naive-ui'
 import { http } from '@/api/http'
@@ -82,6 +83,7 @@ onMounted(load)
 
 <template>
   <div>
+    <DiscountSwitch />
     <div class="head">
       <div>
         <div class="eyebrow">Marketing</div>

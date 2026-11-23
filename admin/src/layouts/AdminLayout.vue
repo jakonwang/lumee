@@ -4,6 +4,8 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NIcon, NButton, NDropdown, NAvatar } from 'naive-ui'
 import { OpenOutline, SwapVerticalOutline } from '@vicons/ionicons5'
 import SidebarNav from '@/components/SidebarNav.vue'
+import SectionTabs from '@/components/SectionTabs.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 import CreateStoreModal from '@/components/CreateStoreModal.vue'
 import { useAuth } from '@/stores/auth'
 import { t, locale, setLocale } from '@/i18n'
@@ -92,6 +94,7 @@ async function onUser(key: string) {
       <NLayoutHeader bordered class="header">
         <div class="crumb">{{ route.meta.title }}</div>
         <div class="header-right">
+          <CommandPalette />
           <a v-if="auth.currentStore" :href="auth.currentStore.storefront_url" target="_blank">
             <NButton quaternary size="small">
               <template #icon><NIcon><OpenOutline /></NIcon></template>
@@ -111,6 +114,7 @@ async function onUser(key: string) {
           <span>{{ banner.text }}</span>
           <RouterLink :to="{ name: 'settings-billing' }">{{ banner.action }} →</RouterLink>
         </div>
+        <SectionTabs v-if="!route.meta.fullBleed" />
         <RouterView />
       </NLayoutContent>
       <CreateStoreModal v-model:show="createOpen" />

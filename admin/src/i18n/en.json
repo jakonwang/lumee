@@ -2973,5 +2973,17 @@
   "买家在问什么": "What shoppers ask",
   "最近 7 天 {0} 个问题": "{0} questions in the last 7 days",
   "还没有买家提问。": "No questions from shoppers yet.",
-  "推荐了：": "Recommended:"
+  "推荐了：": "Recommended:",
+  "搜索页面": "Search pages",
+  "输入页面名称，例如 运费、批发价、AI…": "Type a page name, e.g. shipping, price lists, AI…",
+  "没有找到页面": "No pages found",
+  "↑↓ 选择 · 回车打开 · Esc 关闭": "↑↓ to select · Enter to open · Esc to close",
+  "折扣类型": "Discount type",
+  "选品与采购": "Sourcing & purchasing",
+  "全部客户": "All customers",
+  "营销活动": "Campaigns",
+  "收款与配送": "Payments & shipping",
+  "国际化": "International",
+  "通知与追踪": "Notifications & tracking",
+  "团队与安全": "Team & security"
 }
