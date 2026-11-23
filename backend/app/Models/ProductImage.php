@@ -20,7 +20,12 @@ class ProductImage extends Model
     protected static function booted(): void
     {
         // Remove the file when the record goes away
-        static::deleted(fn (ProductImage $img) => Storage::disk($img->disk)->delete(array_filter([$img->path, $img->original_path])));
+        static::deleted(function (ProductImage $img) {
+            Storage::disk($img->disk)->delete(array_filter([$img->path, $img->original_path]));
+            \App\Media\Img::forget($img->disk, $img->path);   // the storefront sizes made from it
+        });
+        // Replaced file (content workshop standardize / revert): its old sizes are no longer used
+        static::updated(fn (ProductImage $img) => $img->wasChanged('path') ? \App\Media\Img::forget($img->disk, $img->getOriginal('path')) : null);
     }
 
     public function url(): string

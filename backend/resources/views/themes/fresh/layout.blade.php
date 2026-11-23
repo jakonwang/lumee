@@ -24,6 +24,7 @@
     .announce { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; }
     header.site { border-bottom-color: var(--border); }
     .logo { text-transform: none; letter-spacing: -0.01em; font-weight: 700; font-size: 24px; color: var(--ink); }
+    @media (max-width: 520px) { .logo { font-size: 19px; letter-spacing: -0.01em; } }
     nav.main { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 500; }
     .has-sub .sub { border-radius: 10px; }
 

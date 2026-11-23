@@ -10,12 +10,12 @@
     <div class="wrap">
         @if ($s['heading'])<div class="section-head"><h2 class="display">{{ $s['heading'] }}</h2></div>@endif
         <div class="hotspots">
-            <img src="{{ $img }}" alt="" loading="lazy">
+            <img {{ \App\Media\Img::attrs($img, 'hero') }} alt="" loading="lazy">
             @foreach ($points as $i => $p)
                 <div class="hs-point" style="left: {{ $p['x'] }}%; top: {{ $p['y'] }}%">
                     <button type="button" class="hs-dot" aria-expanded="false" aria-controls="{{ $section['id'] }}-hs{{ $i }}" aria-label="{{ $p['product']->title }}">+</button>
                     <a class="hs-card {{ $p['x'] > 60 ? 'to-left' : '' }} {{ $p['y'] > 65 ? 'up' : '' }}" id="{{ $section['id'] }}-hs{{ $i }}" href="{{ route('store.product', $p['product']->handle, false) }}" hidden>
-                        <img src="{{ $p['product']->featured_image ?: $theme->placeholderUrl() }}" alt="" loading="lazy">
+                        <img {{ \App\Media\Img::attrs($p['product']->featured_image ?: $theme->placeholderUrl(), 'thumb') }} alt="" loading="lazy">
                         <span><strong>{{ $p['product']->title }}</strong>{{ $px->display($p['product']->variants->min('price')) }}</span>
                     </a>
                 </div>

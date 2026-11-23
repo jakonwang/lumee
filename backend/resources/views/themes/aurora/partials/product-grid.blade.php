@@ -8,7 +8,7 @@
         <a class="card" href="{{ route('store.product', $product->handle, false) }}">
             <div class="img">
                 @if ($product->featured_image)
-                    <img src="{{ $product->featured_image }}" alt="{{ $product->title }}" loading="lazy">
+                    <img {{ \App\Media\Img::attrs($product->featured_image, 'card') }} alt="{{ $product->title }}" loading="lazy">
                 @else
                     <img class="ph" src="{{ $theme->placeholderUrl() }}" alt="">
                 @endif

@@ -33,7 +33,9 @@ const hasUnpublished = ref(false)
 const themeId = computed(() => Number(route.params.id))
 const themeName = ref('')
 const isActive = ref(false)
-const tab = ref<'sections' | 'settings' | 'ai'>('sections')
+// ?ai=… (a weekly suggestion from 装修效果) opens the AI assistant with that request filled in
+const aiRequest = typeof route.query.ai === 'string' ? route.query.ai : ''
+const tab = ref<'sections' | 'settings' | 'ai'>(aiRequest ? 'ai' : 'sections')
 // AI design: status, and the proposal shown in the preview while comparing (null = the draft)
 const aiStatus = ref<ThemeResponse['ai']>({ ready: false, used: 0, quota: 0, images: false })
 const proposalUrl = ref<string | null>(null)
@@ -785,7 +787,7 @@ onBeforeRouteLeave(async () => {
             <div class="panel-body">
               <AiDesignPanel
                 :theme-id="themeId" :market-id="marketId" :place="place" :place-label="placeInfo?.label ?? ''"
-                :markets="markets" :status="aiStatus"
+                :markets="markets" :status="aiStatus" :initial="aiRequest"
                 @preview="showProposal" @applied="aiApplied" @select="aiSelect" @switch-market="switchMarket" @status="(s) => (aiStatus = s)"
               />
             </div>

@@ -115,7 +115,7 @@ Route::middleware(['store.front', 'store.required'])->prefix('email')->group(fun
 });
 
 // Default language at "/", extra languages under a prefix ("/fr/products/…") — same routes
-Route::middleware(['store.front', 'store.redirects', 'store.locale', 'store.open', 'store.analytics'])->group(function () use ($storefront) {
+Route::middleware(['store.front', 'store.redirects', 'store.locale', 'store.open', 'store.analytics', 'store.cache'])->group(function () use ($storefront) {
     // Served per store (the static public/robots.txt was removed so this route answers)
     Route::get('/robots.txt', [ContentController::class, 'robots'])->name('store.robots');
     Route::get('/sitemap.xml', [ContentController::class, 'sitemap'])->middleware('store.required');
@@ -123,15 +123,22 @@ Route::middleware(['store.front', 'store.redirects', 'store.locale', 'store.open
 });
 Route::prefix('{locale}')
     ->where(['locale' => implode('|', array_keys(config('lumee.languages')))])
-    ->middleware(['store.front', 'store.redirects', 'store.locale', 'store.open', 'store.analytics'])
+    ->middleware(['store.front', 'store.redirects', 'store.locale', 'store.open', 'store.analytics', 'store.cache'])
     ->name('l.')
     ->group($storefront);
 // Markets (country sites): "/es-mx/products/…" = the Mexico market in Spanish — see SetStorefrontLocale
 Route::prefix('{site}')
     ->where(['site' => '(?:'.implode('|', array_keys(config('lumee.languages'))).')-[a-z]{2,12}'])
-    ->middleware(['store.front', 'store.redirects', 'store.locale', 'store.open', 'store.analytics'])
+    ->middleware(['store.front', 'store.redirects', 'store.locale', 'store.open', 'store.analytics', 'store.cache'])
     ->name('m.')
     ->group($storefront);
+
+// Storefront image sizes (any host; no session or cookies, so browsers and CDNs can keep them for a year)
+Route::get('/_img/{width}/{path}', \App\Http\Controllers\Storefront\ImageVariantController::class)
+    ->whereNumber('width')->where('path', 'stores/.+')
+    ->withoutMiddleware([\Illuminate\Session\Middleware\StartSession::class, \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class, \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class])
+    ->middleware('throttle:600,1');
 
 // Payment provider webhooks (no CSRF, no store context — see controller)
 Route::post('/webhooks/stripe', StripeWebhookController::class);

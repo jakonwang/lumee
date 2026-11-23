@@ -15,6 +15,9 @@ class ProductVariant extends Model
     protected static function booted(): void
     {
         static::saved(function (ProductVariant $v) {
+            if ($v->wasRecentlyCreated || $v->wasChanged('price')) {
+                \App\Catalog\PriceHistory::record($v);   // EU "lowest price of the last 30 days"
+            }
             $qty = (int) $v->inventory_quantity;
             if ($v->wasRecentlyCreated) {
                 $qty !== 0 && \App\Services\Inventory::log($v, $qty, \App\Services\Inventory::currentReason() === 'edit' ? 'created' : \App\Services\Inventory::currentReason());

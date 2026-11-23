@@ -41,14 +41,14 @@
         function render() {
             const handles = window.lumeeWishlist.read();
             if (!handles.length) { grid.innerHTML = ''; empty.hidden = false; return; }
-            fetch('/wishlist/products?handles=' + encodeURIComponent(handles.join(',')), { headers: { Accept: 'application/json' } })
+            fetch(@json(app(\App\I18n\Localization::class)->url('/wishlist/products')) + '?handles=' + encodeURIComponent(handles.join(',')), { headers: { Accept: 'application/json' } })
                 .then((r) => r.json())
                 .then((res) => {
                     const byHandle = Object.fromEntries(res.data.map((p) => [p.handle, p]));
                     const items = handles.map((h) => byHandle[h]).filter(Boolean);
                     empty.hidden = items.length > 0;
                     grid.innerHTML = items.map((p) => '<div class="wish-card">'
-                        + '<a href="' + esc(p.url) + '"><div class="img">' + (p.image ? '<img src="' + esc(p.image) + '" alt="" loading="lazy">' : '') + '</div>'
+                        + '<a href="' + esc(p.url) + '"><div class="img">' + (p.image ? '<img src="' + esc(p.image_sm || p.image) + '" alt="" loading="lazy">' : '') + '</div>'
                         + '<span>' + esc(p.title) + '</span><span class="price">' + esc(p.sold_out ? soldOut : p.price) + '</span></a>'
                         + '<button type="button" class="remove" data-wish="' + esc(p.handle) + '" aria-label="' + esc(removeLabel) + '">×</button></div>').join('');
                 });

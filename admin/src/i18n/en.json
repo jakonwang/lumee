@@ -2948,5 +2948,6 @@
   "测试名称": "Test name",
   "测试已开始": "Test started",
   "「{0}」A/B 测试进行中：一半访客看到的是测试开始时的草稿。": "A/B test “{0}” is running: half your visitors see the draft as it was when the test started.",
-  "查看结果": "View results"
+  "查看结果": "View results",
+  "让 AI 按这条修改": "Ask AI to make this change"
 }

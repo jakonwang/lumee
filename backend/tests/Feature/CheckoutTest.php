@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\ShippingRate;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -58,7 +60,7 @@ class CheckoutTest extends TestCase
     {
         $this->flushHeaders();
         $this->app['auth']->forgetGuards();
-        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class);
+        $this->withoutMiddleware(ValidateCsrfToken::class);
 
         return $cartToken ? $this->withUnencryptedCookie('lumee_cart', $cartToken) : $this;
     }
@@ -116,7 +118,7 @@ class CheckoutTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
 
         // $120 subtotal → free shipping accepted
-        $this->shopper($cart)->post(self::HOST.'/cart/items/'.\App\Models\CartItem::withoutGlobalScope('store')->value('id'), ['quantity' => 3]);
+        $this->shopper($cart)->post(self::HOST.'/cart/items/'.CartItem::withoutGlobalScope('store')->value('id'), ['quantity' => 3]);
         $this->shopper($cart)->post(self::HOST.'/checkout', $this->checkoutData(['shipping_rate_id' => $free->id]));
         $this->assertSame(12000, Order::withoutGlobalScope('store')->value('total'));
     }
@@ -213,5 +215,42 @@ class CheckoutTest extends TestCase
             ->assertOk();
         $this->assertSame('paid', $order->fresh()->financial_status);
         $this->assertSame('pi_123', $order->fresh()->payment_reference);
+    }
+
+    public function test_vouchers_are_paid_later_or_expire(): void
+    {
+        config(['services.stripe.secret' => 'sk_test_x', 'services.stripe.webhook_secret' => 'whsec_test']);
+        Http::fake(['api.stripe.com/*' => Http::sequence()->push(['id' => 'cs_a', 'url' => 'https://checkout.stripe.com/a'])->push(['id' => 'cs_b', 'url' => 'https://checkout.stripe.com/b'])]);
+        $send = function (string $type, string $session, Order $order, string $status) {
+            $payload = json_encode(['type' => $type, 'data' => ['object' => ['id' => $session, 'payment_status' => $status, 'payment_intent' => 'pi_'.$session, 'metadata' => ['order_id' => $order->id]]]]);
+            $t = time();
+
+            return $this->call('POST', '/webhooks/stripe', [], [], [], ['HTTP_STRIPE_SIGNATURE' => "t={$t},v1=".hash_hmac('sha256', $t.'.'.$payload, 'whsec_test'), 'CONTENT_TYPE' => 'application/json'], $payload)->assertOk();
+        };
+        $stock = fn () => ProductVariant::withoutGlobalScope('store')->find($this->variantId)->inventory_quantity;
+        $before = $stock();
+
+        // OXXO voucher: checkout completes unpaid, the buyer is told to pay it, then pays at the shop
+        $this->shopper($this->addToCart($this->variantId, 1))->post(self::HOST.'/checkout', $this->checkoutData(['payment_gateway' => 'stripe']));
+        $a = Order::withoutGlobalScope('store')->latest('id')->firstOrFail();
+        $send('checkout.session.completed', 'cs_a', $a, 'unpaid');
+        $this->assertSame('pending', $a->fresh()->financial_status);
+        $this->get(self::HOST."/orders/{$a->token}")->assertSee('Waiting for your payment');
+        $send('checkout.session.async_payment_succeeded', 'cs_a', $a, 'paid');
+        $this->assertSame('paid', $a->fresh()->financial_status);
+
+        // Boleto that expires unpaid: the order is cancelled and the stock comes back
+        $this->shopper($this->addToCart($this->variantId, 1))->post(self::HOST.'/checkout', $this->checkoutData(['payment_gateway' => 'stripe']));
+        $b = Order::withoutGlobalScope('store')->latest('id')->firstOrFail();
+        $this->assertNotSame($a->id, $b->id);
+        $send('checkout.session.completed', 'cs_b', $b, 'unpaid');
+        $send('checkout.session.async_payment_failed', 'cs_b', $b, 'unpaid');
+        $this->assertNotNull($b->fresh()->cancelled_at);
+        $this->assertSame('voided', $b->fresh()->financial_status);
+        $this->assertSame($before - 1, $stock());   // only the paid order keeps its unit
+
+        // A forged session id changes nothing
+        $send('checkout.session.async_payment_succeeded', 'cs_other', $b, 'paid');
+        $this->assertSame('voided', $b->fresh()->financial_status);
     }
 }

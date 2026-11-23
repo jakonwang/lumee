@@ -11,7 +11,7 @@
                     @endphp
                     <div class="fbt-item">
                         <a href="{{ route('store.product', $tp->handle, false) }}" class="fbt-img">
-                            <img src="{{ $tp->featured_image ?: $theme->placeholderUrl() }}" alt="" loading="lazy">
+                            <img {{ \App\Media\Img::attrs($tp->featured_image ?: $theme->placeholderUrl(), 'thumb') }} alt="" loading="lazy">
                         </a>
                         <div class="fbt-info">
                             <a href="{{ route('store.product', $tp->handle, false) }}">{{ $tp->title }}</a>

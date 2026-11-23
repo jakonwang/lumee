@@ -660,5 +660,17 @@
     "Duties included": "الرسوم الجمركية مشمولة",
     "Pay with :methods": "ادفع بواسطة :methods",
     "Installments": "التقسيط",
-    "Order today — arrives between :from and :to": "اطلب اليوم — يصلك بين :from و:to"
+    "Order today — arrives between :from and :to": "اطلب اليوم — يصلك بين :from و:to",
+    "Filter": "تصفية",
+    "In stock only": "المتوفر فقط",
+    "Product type": "نوع المنتج",
+    "Price": "السعر",
+    "Min": "الأدنى",
+    "Max": "الأعلى",
+    "Clear all": "مسح الكل",
+    "No products match these filters.": "لا توجد منتجات تطابق عوامل التصفية هذه.",
+    "Recently viewed": "شوهد مؤخرًا",
+    "Waiting for your payment": "في انتظار دفعتك",
+    "Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.": "ادفع القسيمة أو إيصال الدفع الذي استلمته (OXXO أو boleto…) قبل انتهاء صلاحيته — أُرسلت تعليمات الدفع أيضًا إلى بريدك الإلكتروني. سيتم تأكيد طلبك تلقائيًا فور وصول الدفعة.",
+    "Lowest price in the 30 days before the discount: :price": "أدنى سعر خلال 30 يومًا قبل التخفيض: :price"
 }

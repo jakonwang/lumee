@@ -13,7 +13,7 @@
                 @if ($sl['img'])
                     <picture>
                         @if ($sl['mobile'])<source media="(max-width: 720px)" srcset="{{ $sl['mobile'] }}">@endif
-                        <img src="{{ $sl['img'] }}" alt="" @if ($i > 0) loading="lazy" @endif>
+                        <img {{ \App\Media\Img::attrs($sl['img'], 'hero') }} alt="" @if ($i > 0) loading="lazy" @else fetchpriority="high" @endif>
                     </picture>
                     <div class="ss-shade" style="opacity: {{ (int) $s['overlay'] / 100 }}"></div>
                 @endif

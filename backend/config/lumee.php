@@ -32,6 +32,12 @@ return [
     // Filesystem disk for product images ("public" locally; an S3/R2 disk in production)
     'media_disk' => env('LUMEE_MEDIA_DISK', 'public'),
 
+    // Anonymous shoppers' catalog pages are served from cache for this many seconds (saving products, the theme… clears it)
+    'page_cache' => [
+        'enabled' => (bool) env('LUMEE_PAGE_CACHE', true),
+        'ttl' => (int) env('LUMEE_PAGE_CACHE_TTL', 180),
+    ],
+
     'trial_days' => 14,
 
     // Storefront languages (code => native name). Built-in storefront text exists for each

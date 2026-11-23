@@ -3,7 +3,7 @@
     <div class="wrap image-text {{ $s['image_position'] === 'right' ? 'reverse' : '' }}">
         <div class="it-media">
             @if ($img)
-                <img src="{{ $img }}" alt="" loading="lazy">
+                <img {{ \App\Media\Img::attrs($img, 'half') }} alt="" loading="lazy">
             @else
                 <div class="it-placeholder"><img src="{{ $theme->placeholderUrl() }}" alt=""></div>
             @endif

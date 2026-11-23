@@ -41,6 +41,7 @@ class CollectionController extends Controller
             $query = $collection->sortedProducts($sort);
         }
 
+        $filters = app(\App\Catalog\CollectionFilters::class)->apply($query, $request);   // narrows $query
         $products = $query
             ->with('variants:id,product_id,price,compare_at_price,inventory_quantity,position')
             ->paginate(24)
@@ -50,6 +51,8 @@ class CollectionController extends Controller
             'collection' => $collection,
             'products' => $products,
             'sort' => $sort ?? $collection->sort_order,
+            'filters' => $filters,
+            'clearFilters' => \App\Catalog\CollectionFilters::clearUrl($request),
             'sorts' => $handle === 'all' ? array_diff_key(self::SORTS, ['manual' => 1]) : self::SORTS,
         ]);
     }

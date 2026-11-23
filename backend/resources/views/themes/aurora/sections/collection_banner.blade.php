@@ -3,7 +3,7 @@
     $bannerImg = $s['show_image'] && method_exists($collection, 'imageUrl') && $collection->exists ? $collection->imageUrl() : null;
 @endphp
 <div class="coll-banner align-{{ $s['align'] }} {{ $bannerImg ? 'has-img' : '' }}" data-section-id="{{ $section['id'] }}">
-    @if ($bannerImg)<img src="{{ $bannerImg }}" alt="">@endif
+    @if ($bannerImg)<img {{ \App\Media\Img::attrs($bannerImg, 'hero') }} alt="" fetchpriority="high">@endif
     <div class="wrap coll-head">
         <div class="eyebrow">{{ __('Collection') }}</div>
         <h1 class="display">{{ $collection->title }}</h1>

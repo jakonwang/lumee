@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(\App\Currency\Presentment::class);
         $this->app->scoped(\App\Markets\MarketContext::class);
         $this->app->scoped(\App\Themes\SectionData::class);
+        $this->app->scoped(\App\Storefront\PageCache::class);   // what this request's page cache entry needs
         $this->app->scoped(\App\Themes\DesignExperiments::class);   // design A/B tests running on this request's site   // data the storefront blocks look up (memoized per request)
         $this->app->scoped(\App\Testing\Experiments::class);   // running A/B tests seen in this request   // the market (country site) of this storefront request
         $this->app->scoped(\App\I18n\Localization::class);     // shopper language + content translations   // the shopper's display currency
@@ -56,6 +57,18 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Shoppers see changes right away: saving anything shown on the storefront drops the store's cached pages
+        foreach ([\App\Models\Product::class, \App\Models\ProductVariant::class, \App\Models\ProductImage::class, \App\Models\ProductOption::class,
+            \App\Models\Collection::class, \App\Models\StoreTheme::class, \App\Models\StoreThemeMarket::class, \App\Models\StoreMedia::class,
+            \App\Models\Page::class, \App\Models\Menu::class, \App\Models\BlogPost::class, \App\Models\ProductReview::class,
+            \App\Models\Market::class, \App\Models\MarketPrice::class, \App\Models\MarketProductExclusion::class, \App\Models\Translation::class,
+            \App\Models\Promotion::class, \App\Models\Discount::class, \App\Models\DesignExperiment::class, \App\Models\ContentExperiment::class,
+            \App\Models\ThemeSchedule::class, \App\Models\Store::class] as $model) {
+            $bump = fn ($m) => \App\Storefront\PageCache::bump($m instanceof \App\Models\Store ? $m->id : $m->getAttribute('store_id'));
+            $model::saved($bump);
+            $model::deleted($bump);
+        }
+
         foreach (self::RATE_LIMITS as $name => $perMinute) {
             RateLimiter::for($name, fn (Request $request) => Limit::perMinute($perMinute)
                 ->by($name.'|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));

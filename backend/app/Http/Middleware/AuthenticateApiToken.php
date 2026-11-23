@@ -42,6 +42,12 @@ class AuthenticateApiToken
             $token->forceFill(['last_used_at' => now()])->saveQuietly();
         }
 
-        return $next($request);
+        $response = $next($request);
+        // A change from the admin / an app may show on the storefront (also bulk writes that skip model events)
+        if (! $request->isMethodSafe() && $response->isSuccessful()) {
+            \App\Storefront\PageCache::bump($store->id);
+        }
+
+        return $response;
     }
 }

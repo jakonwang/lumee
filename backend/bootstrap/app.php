@@ -39,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'store.open' => \App\Http\Middleware\StorefrontOpen::class,
             'store.locale' => \App\Http\Middleware\SetStorefrontLocale::class,
             'store.analytics' => \App\Http\Middleware\TrackStorefrontVisit::class,
+            'store.cache' => \App\Http\Middleware\CacheStorefrontPage::class,
             'store.redirects' => \App\Http\Middleware\StorefrontRedirects::class,
             'admin.activity' => \App\Http\Middleware\LogAdminActivity::class,
             'platform.admin' => \App\Http\Middleware\RequirePlatformAdmin::class,

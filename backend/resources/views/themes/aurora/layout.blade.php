@@ -114,7 +114,15 @@
             nav.main { display: none; }
             .menu-btn { display: flex; }
             header.site .wrap { position: relative; }
-            .logo { font-size: 20px; letter-spacing: .18em; position: absolute; left: 50%; transform: translateX(-50%); }
+            .logo { font-size: 20px; letter-spacing: .18em; position: absolute; left: 50%; transform: translateX(-50%); max-width: calc(100% - 300px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .logo img { max-width: 100%; max-height: 40px; }
+            .header-right { gap: 18px; }
+        }
+        /* Phones: four icons leave no room for a centered name, so the logo sits beside the menu button and shrinks */
+        @media (max-width: 520px) {
+            header.site .wrap { gap: 12px; min-height: 60px; }
+            .logo { position: static; transform: none; flex: 1; min-width: 0; max-width: none; font-size: 17px; letter-spacing: .1em; }
+            .header-right { gap: 14px; }
         }
     </style>
     @stack('head')

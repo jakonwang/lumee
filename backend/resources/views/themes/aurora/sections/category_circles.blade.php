@@ -10,7 +10,7 @@
             @foreach ($list as $c)
                 <a class="circle" href="/collections/{{ $c->handle }}">
                     <span class="circle-img">
-                        @if ($url = $c->imageUrl())<img src="{{ $url }}" alt="" loading="lazy">@else<img class="ph" src="{{ $theme->placeholderUrl() }}" alt="">@endif
+                        @if ($url = $c->imageUrl())<img {{ \App\Media\Img::attrs($url, 'thumb') }} alt="" loading="lazy">@else<img class="ph" src="{{ $theme->placeholderUrl() }}" alt="">@endif
                     </span>
                     <span class="circle-name">{{ $c->title }}</span>
                 </a>

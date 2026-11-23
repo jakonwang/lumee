@@ -61,7 +61,7 @@
             · {{ trans_choice(':count min read|:count min read', $post->readingMinutes(), ['count' => $post->readingMinutes()]) }}
         </div>
         @if ($post->cover_image)
-            <div class="cover"><img src="{{ $post->cover_image }}" alt=""></div>
+            <div class="cover"><img {{ \App\Media\Img::attrs($post->cover_image, 'hero') }} alt="" fetchpriority="high"></div>
         @endif
         {{-- Markdown with raw HTML stripped and unsafe links removed (BlogPost::html) --}}
         <div class="rte">{!! $post->html() !!}</div>
@@ -80,7 +80,7 @@
             <div class="related-grid">
                 @foreach ($related as $r)
                     <a href="/blog/{{ $r->handle }}">
-                        <div class="cover">@if ($r->cover_image)<img src="{{ $r->cover_image }}" alt="" loading="lazy">@endif</div>
+                        <div class="cover">@if ($r->cover_image)<img {{ \App\Media\Img::attrs($r->cover_image, 'card') }} alt="" loading="lazy">@endif</div>
                         <span>{{ $r->published_at?->translatedFormat('j M Y') }}</span>
                         <strong>{{ $r->title }}</strong>
                     </a>

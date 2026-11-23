@@ -7,7 +7,7 @@
         <div class="upsell-list">
             @foreach ($suggestions->take((int) $s['limit']) as $sp)
                 <div class="upsell">
-                    <a href="{{ route('store.product', $sp->handle, false) }}"><img src="{{ $sp->featured_image ?: $theme->placeholderUrl() }}" alt="" loading="lazy"></a>
+                    <a href="{{ route('store.product', $sp->handle, false) }}"><img {{ \App\Media\Img::attrs($sp->featured_image ?: $theme->placeholderUrl(), 'thumb') }} alt="" loading="lazy"></a>
                     <a class="upsell-name" href="{{ route('store.product', $sp->handle, false) }}">{{ $sp->title }}</a>
                     <span class="upsell-price">{{ $px->display($sp->variants->min('price')) }}</span>
                     @if ($qv = \App\Catalog\Upsells::quickVariant($sp))

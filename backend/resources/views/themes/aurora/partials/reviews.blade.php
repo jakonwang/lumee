@@ -83,7 +83,7 @@
                     @if ($urls = $r->imageUrls())
                         <div class="rv-photos">
                             @foreach ($urls as $u)
-                                <a href="{{ $u }}" target="_blank" rel="noopener"><img src="{{ $u }}" alt="{{ __('Photo from :name', ['name' => $r->displayName()]) }}" loading="lazy"></a>
+                                <a href="{{ $u }}" target="_blank" rel="noopener"><img {{ \App\Media\Img::attrs($u, 'thumb') }} alt="{{ __('Photo from :name', ['name' => $r->displayName()]) }}" loading="lazy"></a>
                             @endforeach
                         </div>
                     @endif

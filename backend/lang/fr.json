@@ -646,5 +646,18 @@
     "Duties included": "Droits de douane inclus",
     "Pay with :methods": "Payez avec :methods",
     "Installments": "Paiement en plusieurs fois",
-    "Order today — arrives between :from and :to": "Commandez aujourd’hui — livraison entre le :from et le :to"
+    "Order today — arrives between :from and :to": "Commandez aujourd’hui — livraison entre le :from et le :to",
+    "Filter": "Filtrer",
+    "In stock only": "En stock uniquement",
+    "In stock": "En stock",
+    "Product type": "Type de produit",
+    "Price": "Prix",
+    "Min": "Min",
+    "Max": "Max",
+    "Clear all": "Tout effacer",
+    "No products match these filters.": "Aucun produit ne correspond à ces filtres.",
+    "Recently viewed": "Consultés récemment",
+    "Waiting for your payment": "En attente de votre paiement",
+    "Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.": "Réglez le bon ou le bordereau reçu (OXXO, boleto…) avant son expiration ; les instructions de paiement vous ont aussi été envoyées par e-mail. Votre commande sera confirmée automatiquement dès réception du paiement.",
+    "Lowest price in the 30 days before the discount: :price": "Prix le plus bas des 30 jours précédant la réduction : :price"
 }

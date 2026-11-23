@@ -69,7 +69,8 @@ async function refresh() {
   } catch (e) { message.error(errorMessage(e)) } finally { refreshing.value = false }
 }
 const siteName = (m: { name: string } | string | null) => (m === null ? t('主站') : typeof m === 'string' ? m : m.name)
-const editor = (marketId: number | null) => router.push({ name: 'theme-editor', params: { id: data.value!.theme_id }, query: marketId ? { market: String(marketId) } : {} })
+const editor = (marketId: number | null, ai?: string) => router.push({ name: 'theme-editor', params: { id: data.value!.theme_id },
+  query: { ...(marketId ? { market: String(marketId) } : {}), ...(ai ? { ai } : {}) } })
 </script>
 
 <template>
@@ -148,6 +149,7 @@ const editor = (marketId: number | null) => router.push({ name: 'theme-editor', 
               <div v-for="(s, n) in i.suggestions" :key="n" class="suggestion">
                 <strong>{{ s.title }}</strong>
                 <p>{{ s.detail }}</p>
+                <NButton v-if="data.ai.ready" size="tiny" secondary class="ai-go" @click="editor(i.market_id, `${s.title}。${s.detail}`)">{{ t('让 AI 按这条修改') }}</NButton>
               </div>
             </div>
           </div>
@@ -206,6 +208,7 @@ const editor = (marketId: number | null) => router.push({ name: 'theme-editor', 
 .findings li.warning, .findings li.error { color: #b45309; }
 .suggestion { background: #f0fdf4; border-radius: 6px; padding: 8px 10px; margin-top: 8px; font-size: 13px; }
 .suggestion p { margin: 4px 0 0; color: #444; }
+.ai-go { margin-top: 6px; }
 .table-wrap { overflow-x: auto; }
 .delta { font-size: 11px; color: #b91c1c; margin-left: 4px; }
 .delta.good { color: #15803d; }

@@ -18,7 +18,7 @@
                     <div class="line">
                         <a class="thumb" href="/products/{{ $p->handle }}">
                             @if ($item->imageUrl())
-                                <img src="{{ $item->imageUrl() }}" alt="{{ $p->title }}">
+                                <img {{ \App\Media\Img::attrs($item->imageUrl(), 'thumb') }} alt="{{ $p->title }}">
                             @else
                                 <img class="ph" src="{{ $theme->placeholderUrl() }}" alt="">
                             @endif

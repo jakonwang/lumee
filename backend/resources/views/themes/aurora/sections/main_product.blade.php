@@ -3,7 +3,7 @@
     <div class="gallery">
         <div class="main-img">
             @if ($mainImage)
-                <img id="main-img" src="{{ $mainImage->url() }}" alt="{{ $mainImage->alt ?: $product->title }}">
+                <img id="main-img" {{ \App\Media\Img::attrs($mainImage->url(), 'product') }} alt="{{ $mainImage->alt ?: $product->title }}" fetchpriority="high">
             @else
                 <img class="ph" src="{{ $theme->placeholderUrl() }}" alt="">
             @endif
@@ -11,9 +11,9 @@
         @if ($images->count() > 1)
             <div class="thumbs" role="list">
                 @foreach ($images as $img)
-                    <button type="button" class="thumb" role="listitem" data-image-id="{{ $img->id }}" data-src="{{ $img->url() }}"
+                    <button type="button" class="thumb" role="listitem" data-image-id="{{ $img->id }}" data-src="{{ $img->url() }}" data-main="{{ \App\Media\Img::url($img->url(), 960) }}" data-srcset="{{ \App\Media\Img::path($img->url()) ? collect(\App\Media\Img::PRESETS['product'][0])->map(fn ($w) => \App\Media\Img::url($img->url(), $w).' '.$w.'w')->implode(', ') : '' }}"
                             aria-label="{{ __('Show image :n', ['n' => $loop->iteration]) }}" aria-current="{{ $img->id === $mainImage?->id ? 'true' : 'false' }}">
-                        <img src="{{ $img->url() }}" alt="" loading="lazy">
+                        <img {{ \App\Media\Img::attrs($img->url(), 'thumb') }} alt="" loading="lazy">
                     </button>
                 @endforeach
             </div>
@@ -39,6 +39,11 @@
             <span class="was" id="was">{{ $selected?->compare_at_price > $selected?->price ? $m($selected->compare_at_price) : '' }}</span>
             <span class="save" id="save">{{ $selected?->compare_at_price > $selected?->price ? __('Save :percent%', ['percent' => round(100 - $selected->price / $selected->compare_at_price * 100)]) : '' }}</span>
         </div>
+        @if (isset($lowest) && $lowest && ! $hidePrices)
+            {{-- EU: lowest price of the 30 days before the discount (Omnibus directive) --}}
+            @php $low = $selected ? ($lowest[$selected->id] ?? null) : null; @endphp
+            <p class="lowest" id="lowest" data-text="{{ __('Lowest price in the 30 days before the discount: :price', ['price' => '__P__']) }}" @if (! $low || ! ($selected->compare_at_price > $selected->price)) hidden @endif>{{ $low ? __('Lowest price in the 30 days before the discount: :price', ['price' => $m($low)]) : '' }}</p>
+        @endif
         @php
             $installments = \App\Payments\Installments::settings();
             $offer = $selected && ! $hidePrices ? \App\Payments\Installments::offer((int) $selected->price) : null;

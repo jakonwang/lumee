@@ -34,12 +34,14 @@ const props = defineProps<{
   placeLabel: string
   markets: ThemeResponse['markets']
   status: ThemeResponse['ai']
+  /** A request to start with (e.g. a weekly design suggestion sent from 装修效果) */
+  initial?: string
 }>()
 const emit = defineEmits<{ preview: [url: string | null]; applied: [data: ThemeResponse]; select: [blockId: string]; 'switch-market': [id: number]; status: [s: ThemeResponse['ai']] }>()
 const message = useMessage()
 
 const mode = ref<'edit' | 'build'>('edit')
-const text = ref('')
+const text = ref(props.initial ?? '')
 const aiBanner = ref(false)
 const busy = ref(false)
 const turns = ref<Turn[]>([])

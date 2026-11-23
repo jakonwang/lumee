@@ -646,5 +646,18 @@
     "Duties included": "関税込み",
     "Pay with :methods": ":methods でお支払い可能",
     "Installments": "分割払い",
-    "Order today — arrives between :from and :to": "今日のご注文で :from〜:to にお届け"
+    "Order today — arrives between :from and :to": "今日のご注文で :from〜:to にお届け",
+    "Filter": "絞り込み",
+    "In stock only": "在庫ありのみ",
+    "In stock": "在庫あり",
+    "Product type": "商品タイプ",
+    "Price": "価格",
+    "Min": "最小",
+    "Max": "最大",
+    "Clear all": "すべてクリア",
+    "No products match these filters.": "条件に合う商品はありません。",
+    "Recently viewed": "最近チェックした商品",
+    "Waiting for your payment": "お支払いをお待ちしています",
+    "Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.": "お受け取りの支払票（OXXO、boleto など）で期限までにお支払いください。お支払い方法はメールでもお送りしています。入金が確認され次第、ご注文は自動的に確定します。",
+    "Lowest price in the 30 days before the discount: :price": "値下げ前30日間の最安値：:price"
 }

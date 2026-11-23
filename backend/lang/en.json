@@ -1025,5 +1025,10 @@
   "转化率从 :p0% 降到 :p1%，看看这段时间装修有没有改动": "Conversion fell from :p0% to :p1%. Check whether the design changed in this period",
   "这段时间的数据没有明显问题": "No obvious problems in this period",
   "活动「:p0」上线，测试已停止": "Campaign “:p0” went live, so the test was stopped",
-  "只能测试正在使用的主题": "Only the live theme can be tested"
+  "只能测试正在使用的主题": "Only the live theme can be tested",
+  "商品列表（筛选、排序、分页）": "Product grid (filters, sorting, pages)",
+  "显示筛选（尺码、颜色、价格、有货）": "Show filters (size, color, price, in stock)",
+  "最近浏览": "Recently viewed",
+  "最多显示": "Show up to",
+  "买家选择了到店或银行付款（OXXO、boleto 等），付款后订单会自动标记为已付款": "The buyer chose to pay at a shop or bank (OXXO, boleto…). The order will be marked paid automatically once they pay"
 }

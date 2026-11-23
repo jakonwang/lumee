@@ -9,7 +9,7 @@
         <div class="ugc">
             @foreach ($photos as $p)
                 <a class="ugc-item" href="{{ $p['product'] ? route('store.product', $p['product']->handle, false) : '#' }}">
-                    <img src="{{ $p['url'] }}" alt="{{ __('Photo from :name', ['name' => $p['author']]) }}" loading="lazy">
+                    <img {{ \App\Media\Img::attrs($p['url'], 'card') }} alt="{{ __('Photo from :name', ['name' => $p['author']]) }}" loading="lazy">
                     <span class="ugc-meta"><span aria-hidden="true">{{ str_repeat('★', $p['rating']) }}</span> {{ $p['author'] }}@if ($p['product']) · {{ $p['product']->title }}@endif</span>
                 </a>
             @endforeach

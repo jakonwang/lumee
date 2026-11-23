@@ -30,6 +30,10 @@ class StorefrontController extends Controller
     {
         $product = Product::active()->with('variants', 'images', 'options')->where('handle', $handle)->firstOrFail();
         app(\App\Analytics\Visits::class)->productView($product->id);
+        app(\App\Storefront\PageCache::class)->productView($product->id);   // a cached copy still counts the view
+        if (app(\App\Testing\Experiments::class)->running($product->id)) {
+            app(\App\Storefront\PageCache::class)->skip();   // each visitor sees their version
+        }
         app(\App\Testing\Experiments::class)->present($product);   // A/B test of the main image or title
         if ($viewer = \App\Customers\CustomerSession::user()) {   // browse-abandonment emails
             \App\Models\Customer::withoutGlobalScope('store')->whereKey($viewer->id)->update(['last_viewed_product_id' => $product->id, 'last_viewed_at' => now()]);
@@ -119,6 +123,7 @@ class StorefrontController extends Controller
             'title' => $p->title,
             'url' => route('store.product', $p->handle, false),
             'image' => $p->featured_image,
+            'image_sm' => \App\Media\Img::url($p->featured_image, 480),   // card-sized copy
             'price' => $px->display((int) $p->variants->min('price')),
             'sold_out' => $p->variants->sum('inventory_quantity') <= 0,
         ])->values()]);

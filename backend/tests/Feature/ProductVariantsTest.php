@@ -196,7 +196,7 @@ class ProductVariantsTest extends TestCase
         $cookie = $res->getCookie('lumee_cart', false)->getValue();
 
         $this->withUnencryptedCookie('lumee_cart', $cookie)->get("$host/cart")
-            ->assertSee('Silver / 18in')->assertSee('$218.00')->assertSee($img2['url']);
+            ->assertSee('Silver / 18in')->assertSee('$218.00')->assertSee(basename($img2['url']));   // a resized copy of it
 
         // Sold-out variant (Gold / 18in) can't be added
         $goldLong = collect($p['variants'])->firstWhere('title', 'Gold / 18in');

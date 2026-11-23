@@ -55,6 +55,9 @@
                     @elseif ($order->isPaid())
                         <strong>{{ __('Your order is confirmed') }}</strong>
                         <p style="color:var(--ink-muted);margin:6px 0 0;font-size:14px;">{{ __("We've received your payment and are preparing your order. Bookmark this page to check its status.") }}</p>
+                    @elseif ($order->payment_gateway === 'stripe' && $order->events()->where('type', 'payment_pending')->exists())
+                        <strong>{{ __('Waiting for your payment') }}</strong>
+                        <p style="color:var(--ink-muted);margin:6px 0 0;font-size:14px;">{{ __('Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.') }}</p>
                     @elseif ($order->payment_gateway === 'stripe')
                         <strong>{{ __('Awaiting payment confirmation') }}</strong>
                         <p style="color:var(--ink-muted);margin:6px 0 0;font-size:14px;">{{ __('If you completed payment, this page will update shortly. Refresh to check again.') }}</p>

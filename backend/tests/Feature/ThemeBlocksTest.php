@@ -73,7 +73,7 @@ class ThemeBlocksTest extends TestCase
     {
         $this->product(['title' => 'Rose Ring']);
         $d = $this->editor();
-        $this->assertSame(['main_product', 'product_reviews', 'frequently_bought', 'related_products'], array_column($d['config']['templates']['product'], 'type'));
+        $this->assertSame(['main_product', 'product_reviews', 'frequently_bought', 'related_products', 'recently_viewed'], array_column($d['config']['templates']['product'], 'type'));
         $this->assertSame(['home', 'product', 'collection', 'cart'], array_column($d['places'], 'key'));
         $this->assertStringContainsString('/products/rose-ring?_preview=', $d['places'][1]['preview_url']);
 

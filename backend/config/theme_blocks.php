@@ -167,6 +167,14 @@ return [
             'label' => '搭配购买', 'on' => ['product'], 'max_per_page' => 1,
             'fields' => [],
         ],
+        'recently_viewed' => [
+            'label' => '最近浏览', 'on' => $everywhere,
+            'fields' => [
+                'heading' => ['type' => 'text', 'label' => '标题', 'max' => 100, 'default' => 'Recently viewed'],
+                'limit' => ['type' => 'range', 'label' => '最多显示', 'min' => 2, 'max' => 12, 'step' => 1, 'default' => 6],
+                ...$grid,
+            ],
+        ],
         'related_products' => [
             'label' => '相关推荐', 'on' => ['product'],
             'fields' => [
@@ -187,10 +195,11 @@ return [
             ],
         ],
         'collection_grid' => [
-            'label' => '商品列表（排序、分页）', 'on' => ['collection'], 'max_per_page' => 1,
+            'label' => '商品列表（筛选、排序、分页）', 'on' => ['collection'], 'max_per_page' => 1,
             'fields' => [
                 ...$grid,
                 'show_sort' => ['type' => 'checkbox', 'label' => '显示排序', 'default' => true],
+                'show_filters' => ['type' => 'checkbox', 'label' => '显示筛选（尺码、颜色、价格、有货）', 'default' => true],
             ],
         ],
 
@@ -216,7 +225,7 @@ return [
     ],
 
     'templates' => [
-        'product' => ['label' => '商品页', 'fixed' => 'main_product', 'default' => ['main_product', 'product_reviews', 'frequently_bought', 'related_products']],
+        'product' => ['label' => '商品页', 'fixed' => 'main_product', 'default' => ['main_product', 'product_reviews', 'frequently_bought', 'related_products', 'recently_viewed']],
         'collection' => ['label' => '分类页', 'fixed' => 'collection_grid', 'default' => ['collection_banner', 'collection_grid']],
         'cart' => ['label' => '购物车', 'fixed' => 'cart_main', 'default' => ['cart_main', 'cart_upsell']],
         'page' => ['label' => '活动页', 'default' => ['hero', 'featured_products']],

@@ -4,7 +4,7 @@
         @php($img = $c->imageUrl())
         <a class="coll-tile" href="/collections/{{ $c->handle }}">
             <div class="coll-img">
-                @if ($img)<img src="{{ $img }}" alt="" loading="lazy">@else<img class="ph" src="{{ $theme->placeholderUrl() }}" alt="">@endif
+                @if ($img)<img {{ \App\Media\Img::attrs($img, 'card') }} alt="" loading="lazy">@else<img class="ph" src="{{ $theme->placeholderUrl() }}" alt="">@endif
             </div>
             <div class="coll-name">{{ $c->title }} <span aria-hidden="true">→</span></div>
         </a>

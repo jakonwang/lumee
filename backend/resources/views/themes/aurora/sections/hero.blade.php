@@ -3,7 +3,7 @@
 <section class="hero {{ $img ? 'has-img' : '' }}" data-section-id="{{ $section['id'] }}"
          style="--hero-h: {{ $heights[$s['height']] ?? '520px' }}; --overlay: {{ $s['overlay'] / 100 }}">
     @if ($img)
-        <img class="hero-bg" src="{{ $img }}" alt="" fetchpriority="high">
+        <img class="hero-bg" {{ \App\Media\Img::attrs($img, 'hero') }} alt="" fetchpriority="high">
     @endif
     <div class="wrap hero-inner">
         @if ($s['eyebrow'])<div class="eyebrow">{{ $s['eyebrow'] }}</div>@endif

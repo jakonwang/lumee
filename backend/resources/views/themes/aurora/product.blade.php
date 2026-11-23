@@ -38,12 +38,15 @@
         'preorder' => __('Pre-order'),
         'preNote' => '● '.$preNote.($pre['note'] ? ' · '.$pre['note'] : ''),
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+    // EU sites: the lowest price of the 30 days before a discount, next to the sale price
+    $lowest = \App\Catalog\PriceHistory::applies() ? \App\Catalog\PriceHistory::lowestBefore($variants->pluck('id')->all()) : [];
     // JSON for the variant picker; HEX flags make it safe to embed inside <script>
     $variantsJson = json_encode($variants->map(fn ($v) => [
         'id' => $v->id,
         'options' => $v->options ?? (object) [],
         'price' => $v->price,
         'compare' => $v->compare_at_price,
+        'low' => $lowest[$v->id] ?? null,
         'stock' => $sellable($v),
         'pre' => $isPre($v),
         'image' => $v->image_id ? $images->firstWhere('id', $v->image_id)?->url() : null,
@@ -103,6 +106,7 @@
     .price { font-size: 22px; color: var(--rose-gold-700); }
     .was { color: var(--ink-muted); text-decoration: line-through; font-size: 16px; margin-inline-start: 8px; }
     .was:empty { display: none; }
+    .lowest { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-muted); }
     .save { display: inline-block; margin-inline-start: 10px; font-size: 12px; padding: 2px 10px; border-radius: 999px; background: var(--gem-blush); color: var(--on-accent); vertical-align: middle; }
     .save:empty { display: none; }
     .desc { color: var(--ink-muted); line-height: 1.8; margin: 24px 0; white-space: pre-line; }
@@ -160,11 +164,18 @@
             return nf.format(c / 100);
         } };
         const $ = (s) => document.querySelector(s);
+        try {   // "Recently viewed": this browser only, newest first
+            const k = 'lumee_recent', h = @json($product->handle);
+            const list = JSON.parse(localStorage.getItem(k) || '[]').filter((x) => x !== h);
+            localStorage.setItem(k, JSON.stringify([h, ...list].slice(0, 20)));
+        } catch (e) {}
         const main = $('#main-img');
 
         function showImage(src) {
             if (!main || !src) return;
-            main.src = src;
+            // Uploaded images come in several sizes: use the thumbnail's set so the browser picks the right one
+            const t = Array.from(document.querySelectorAll('.thumb')).find((x) => x.dataset.src === src);
+            if (t && t.dataset.srcset) { main.srcset = t.dataset.srcset; main.src = t.dataset.main; } else { main.removeAttribute('srcset'); main.src = src; }
             document.querySelectorAll('.thumb').forEach((t) => t.setAttribute('aria-current', t.dataset.src === src ? 'true' : 'false'));
         }
         document.querySelectorAll('.thumb').forEach((t) => t.addEventListener('click', () => showImage(t.dataset.src)));
@@ -223,6 +234,8 @@
             const onSale = v.compare && v.compare > v.price;
             $('#was').textContent = onSale ? fmt.format(v.compare / 100) : '';
             $('#save').textContent = onSale ? t.save.replace(':percent', Math.round(100 - v.price / v.compare * 100)) : '';
+            const low = document.getElementById('lowest');
+            if (low) { low.hidden = !(onSale && v.low); if (onSale && v.low) low.textContent = low.dataset.text.replace('__P__', fmt.format(v.low / 100)); }
             add.disabled = v.stock <= 0;
             add.textContent = v.stock <= 0 ? t.soldOut : v.pre ? t.preorder : t.add;
             stock.className = 'stock ' + (v.pre && v.stock > 0 ? 'pre' : v.stock <= 0 ? 'out' : v.stock <= 5 ? 'low' : '');

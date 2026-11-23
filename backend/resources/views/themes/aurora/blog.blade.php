@@ -49,7 +49,7 @@
                 @foreach ($posts as $post)
                     <a class="post-card" href="/blog/{{ $post->handle }}">
                         <div class="cover">
-                            @if ($post->cover_image)<img src="{{ $post->cover_image }}" alt="" loading="lazy">@endif
+                            @if ($post->cover_image)<img {{ \App\Media\Img::attrs($post->cover_image, 'card') }} alt="" loading="lazy">@endif
                         </div>
                         <div class="post-meta">{{ $post->published_at?->translatedFormat('j M Y') }} · {{ trans_choice(':count min read|:count min read', $post->readingMinutes(), ['count' => $post->readingMinutes()]) }}</div>
                         <h2 class="display">{{ $post->title }}</h2>
