@@ -659,5 +659,20 @@
     "Recently viewed": "Zuletzt angesehen",
     "Waiting for your payment": "Wir warten auf Ihre Zahlung",
     "Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.": "Bezahlen Sie den erhaltenen Gutschein oder Zahlschein (OXXO, Boleto …) vor Ablauf – die Zahlungsanweisungen wurden Ihnen auch per E-Mail geschickt. Ihre Bestellung wird automatisch bestätigt, sobald die Zahlung eingeht.",
-    "Lowest price in the 30 days before the discount: :price": "Niedrigster Preis der letzten 30 Tage vor der Preissenkung: :price"
+    "Lowest price in the 30 days before the discount: :price": "Niedrigster Preis der letzten 30 Tage vor der Preissenkung: :price",
+    "Continue with Google": "Weiter mit Google",
+    "or": "oder",
+    "Google sign-in didn’t work. Please try again or use your email.": "Die Anmeldung mit Google hat nicht funktioniert. Bitte versuchen Sie es erneut oder nutzen Sie Ihre E-Mail.",
+    "You’re offline": "Sie sind offline",
+    "Check your connection — the shop will be right here when you’re back.": "Prüfen Sie Ihre Verbindung – der Shop ist gleich wieder da.",
+    "Try again": "Erneut versuchen",
+    "Hi! Looking for something? Ask me about sizes, materials, shipping or gift ideas.": "Hallo! Suchen Sie etwas? Fragen Sie mich nach Größen, Materialien, Versand oder Geschenkideen.",
+    "Chat with our shopping assistant": "Mit unserem Einkaufsassistenten chatten",
+    "Shopping assistant": "Einkaufsassistent",
+    "AI · answers may not be perfect": "KI · Antworten sind evtl. nicht perfekt",
+    "Ask a question…": "Stellen Sie eine Frage…",
+    "Your question": "Ihre Frage",
+    "Send": "Senden",
+    "Sorry, I can’t answer right now. Please try again in a moment.": "Entschuldigung, ich kann gerade nicht antworten. Bitte versuchen Sie es gleich noch einmal.",
+    "The shopping assistant is not available right now.": "Der Einkaufsassistent ist gerade nicht verfügbar."
 }

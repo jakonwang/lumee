@@ -659,5 +659,20 @@
     "Recently viewed": "Consultés récemment",
     "Waiting for your payment": "En attente de votre paiement",
     "Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.": "Réglez le bon ou le bordereau reçu (OXXO, boleto…) avant son expiration ; les instructions de paiement vous ont aussi été envoyées par e-mail. Votre commande sera confirmée automatiquement dès réception du paiement.",
-    "Lowest price in the 30 days before the discount: :price": "Prix le plus bas des 30 jours précédant la réduction : :price"
+    "Lowest price in the 30 days before the discount: :price": "Prix le plus bas des 30 jours précédant la réduction : :price",
+    "Continue with Google": "Continuer avec Google",
+    "or": "ou",
+    "Google sign-in didn’t work. Please try again or use your email.": "La connexion avec Google a échoué. Réessayez ou utilisez votre e-mail.",
+    "You’re offline": "Vous êtes hors ligne",
+    "Check your connection — the shop will be right here when you’re back.": "Vérifiez votre connexion : la boutique vous attend à votre retour.",
+    "Try again": "Réessayer",
+    "Hi! Looking for something? Ask me about sizes, materials, shipping or gift ideas.": "Bonjour ! Vous cherchez quelque chose ? Posez-moi vos questions sur les tailles, matières, la livraison ou des idées cadeaux.",
+    "Chat with our shopping assistant": "Discuter avec notre assistant shopping",
+    "Shopping assistant": "Assistant shopping",
+    "AI · answers may not be perfect": "IA · les réponses peuvent être imparfaites",
+    "Ask a question…": "Posez une question…",
+    "Your question": "Votre question",
+    "Send": "Envoyer",
+    "Sorry, I can’t answer right now. Please try again in a moment.": "Désolé, je ne peux pas répondre pour le moment. Réessayez dans un instant.",
+    "The shopping assistant is not available right now.": "L’assistant shopping n’est pas disponible pour le moment."
 }

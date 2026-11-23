@@ -60,7 +60,7 @@ class ThemeSwitchTest extends TestCase
             ->assertJsonPath('config.settings.colors.primary', '#0E8A5F')
             ->assertJsonPath('config.settings.colors.background', '#FFFFFF')
             ->assertJsonPath('config.settings.typography.heading_font', 'Plus Jakarta Sans');
-        $this->assertSame(['aurora', 'fresh'], array_column($res->json('themes'), 'key'));
+        $this->assertSame(['aurora', 'fresh', 'bold', 'luxe'], array_column($res->json('themes'), 'key'));
         $this->assertArrayHasKey('collection_list', $res->json('schema.sections'));   // sections inherited
 
         $this->as()->getJson('/api/admin/theme?theme=nope')->assertNotFound();
@@ -154,5 +154,17 @@ class ThemeSwitchTest extends TestCase
         $this->withUnencryptedCookie('lumee_cart', $cart)->get(self::HOST.'/checkout')->assertOk()
             ->assertSee('Complete order')
             ->assertSee(':root { --gradient-metal: var(--rose-gold-500); }', false);   // Fresh checkout overrides
+    }
+
+    public function test_bold_and_luxe_themes_render_with_their_own_styles(): void
+    {
+        foreach (['bold' => ['--tracking-wide: .08em', 'family=Oswald', '#E4202C'], 'luxe' => ['--tracking-wide: .28em', 'family=Bodoni+Moda', '#FAF8F4']] as $theme => $expect) {
+            $id = $this->as()->getJson("/api/admin/theme?theme={$theme}")->assertOk()->assertJsonPath('theme', $theme)->json('id');
+            $this->as()->postJson('/api/admin/theme/publish', ['id' => $id])->assertOk();
+            $html = $this->shopper()->get(self::HOST.'/?'.$theme)->assertOk()->getContent();
+            foreach ($expect as $needle) {
+                $this->assertStringContainsString($needle, $html);
+            }
+        }
     }
 }

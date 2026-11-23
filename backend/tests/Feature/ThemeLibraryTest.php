@@ -60,7 +60,7 @@ class ThemeLibraryTest extends TestCase
     public function test_library_copy_rename_publish_and_delete_rules(): void
     {
         $list = $this->as($this->a)->getJson('/api/admin/themes')->assertOk()->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.live', true)->assertJsonCount(2, 'templates');
+            ->assertJsonPath('data.0.live', true)->assertJsonCount(4, 'templates');   // Aurora, Fresh, Bold, Luxe
         $liveId = $list->json('data.0.id');
 
         // Edit the live theme's draft, then copy it: the copy carries the draft, is not live

@@ -53,7 +53,7 @@
         <div class="hero-inner">
             <span class="pill">跨境独立站 · 一站式建站平台</span>
             <h1>几分钟开一家<em>卖向全球</em>的独立站</h1>
-            <p class="lead">选模板、上商品、绑域名、收全球付款。建站、收款、物流、营销一站搞定，专注把生意做大。</p>
+            <p class="lead">一个后台管理多个国家站点：AI 帮你装修，选品、收款、物流、营销一站搞定，专注把生意做大。</p>
             <div class="cta"><a class="btn btn-primary" href="{{ config('lumee.admin_url') }}/login">免费开店</a></div>
             <p class="note">14 天免费试用 · 无需信用卡</p>
         </div>
@@ -62,24 +62,44 @@
     @php($icon = fn ($d) => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$d.'</svg>')
     <section class="features">
         <div class="feature">
+            <div class="ic">{!! $icon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>') !!}</div>
+            <h3>一个国家一个站点</h3>
+            <p>墨西哥、巴西、欧洲、中东……每个市场有自己的币种、语言、价格和支付方式，阿拉伯语自动从右到左排版。</p>
+        </div>
+        <div class="feature">
+            <div class="ic">{!! $icon('<path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/>') !!}</div>
+            <h3>AI 一键装修</h3>
+            <p>用中文说需求，AI 按当地语言和购物习惯生成整套页面；也能按地区风格自动装修，先预览再发布。</p>
+        </div>
+        <div class="feature">
             <div class="ic">{!! $icon('<path d="M4 5h16v14H4z"/><path d="M4 9h16M9 9v10"/>') !!}</div>
-            <h3>拖拽装修店铺</h3>
-            <p>精美模板，实时预览，不写代码也能做出品牌感十足的网站。</p>
+            <h3>拖拽装修 · 节日自动换装</h3>
+            <p>实时预览的模块化编辑器，每个国家站点可以单独装修；节日活动按日历自动上线、结束自动恢复。</p>
+        </div>
+        <div class="feature">
+            <div class="ic">{!! $icon('<path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6"/>') !!}</div>
+            <h3>用数据改版</h3>
+            <p>设计 A/B 测试、各国站点表现看板、每周改版建议，哪个版本卖得更好一目了然。</p>
+        </div>
+        <div class="feature">
+            <div class="ic">{!! $icon('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6M11 8v6"/>') !!}</div>
+            <h3>选品与货源</h3>
+            <p>选品雷达找潜力商品，一键采集上架，内容工坊优化文案和图片，采购单直连供应商。</p>
         </div>
         <div class="feature">
             <div class="ic">{!! $icon('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h3"/>') !!}</div>
-            <h3>全球收款</h3>
-            <p>支持信用卡、Apple Pay 等主流支付方式，资金安全到账。</p>
+            <h3>全球收款 · 当地支付</h3>
+            <p>信用卡、Apple Pay、PayPal，以及 OXXO、Pix、Boleto、分期、货到付款等当地方式。</p>
         </div>
         <div class="feature">
             <div class="ic">{!! $icon('<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7M12 11v10"/>') !!}</div>
-            <h3>订单与物流</h3>
-            <p>订单集中管理，一键发货，自动给买家发送物流通知。</p>
+            <h3>订单、物流与 B2B</h3>
+            <p>订单集中管理、物流追踪、退货退款；批发价格表、报价单和分销商目录一并支持。</p>
         </div>
         <div class="feature">
-            <div class="ic">{!! $icon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>') !!}</div>
-            <h3>多币种 · 多规格</h3>
-            <p>多规格商品、分类管理，面向全球买家的购物体验。</p>
+            <div class="ic">{!! $icon('<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>') !!}</div>
+            <h3>为手机而生</h3>
+            <p>图片按屏幕自动压缩、页面缓存、筛选和最近浏览，买家还能把店铺添加到手机桌面。</p>
         </div>
     </section>
 

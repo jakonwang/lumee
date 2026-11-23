@@ -55,7 +55,7 @@ class Customer extends Authenticatable
 
     public function hasAccount(): bool
     {
-        return $this->password !== null;
+        return $this->password !== null || $this->google_id !== null;
     }
 
     public function isVerified(): bool

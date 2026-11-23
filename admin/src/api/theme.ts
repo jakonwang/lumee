@@ -84,11 +84,15 @@ export interface ThemeResponse {
   ai: { ready: boolean; used: number; quota: number; images: boolean }
   /** A design A/B test running on this site (B = the draft as it was when the test started) */
   experiment: { id: number; name: string; started_at: string } | null
+  /** Main site: field key ("settings.colors.primary", "sections.{id}.{field}", "sections.*") => country sites that set it themselves */
+  market_overrides: Record<string, string[]>
 }
 
 /** One version's numbers in a design A/B test */
 export interface DesignArm { sessions: number; carts: number; orders: number; revenue: number; cart_rate: number; conversion: number; revenue_per_session: number }
-export interface DesignStats { a: DesignArm; b: DesignArm; p_value: number | null; p_cart: number | null; uplift: number | null; leader: 'a' | 'b' | null; ready: boolean; min: number }
+export interface DesignStats { a: DesignArm; b: DesignArm; p_value: number | null; p_cart: number | null; uplift: number | null; leader: 'a' | 'b' | null; ready: boolean; min: number
+  /** Revenue per visit difference (p), visits per version this difference needs, days running, what to do */
+  p_revenue: number | null; needed: number | null; days: number; advice: 'decide' | 'wait' | 'no_difference' }
 
 /** A site's visit numbers for a period (装修效果) */
 export interface SiteMetrics {

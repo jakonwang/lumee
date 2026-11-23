@@ -30,7 +30,7 @@ class PageCache
     /** Something shoppers see changed: drop this store's cached pages. */
     public static function bump(?int $storeId): void
     {
-        if ($storeId && self::enabled()) {
+        if ($storeId) {   // also when the page cache is off: the sitemap cache is keyed on it
             Cache::forever("page-ver:{$storeId}", (string) hrtime(true));
         }
     }

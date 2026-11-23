@@ -3,6 +3,9 @@
     .acct { padding-block: 56px; }
     .auth-card { max-width: 440px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 36px 32px; box-shadow: var(--shadow-soft); }
     .auth-card h1 { font-size: 34px; margin: 6px 0 8px; }
+    .google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; text-transform: none; letter-spacing: normal; font-size: 15px; }
+    .auth-card .or { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--ink-muted); font-size: 12px; }
+    .auth-card .or::before, .auth-card .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
     .auth-card .lead { color: var(--ink-muted); font-size: 14px; margin: 0 0 24px; line-height: 1.6; }
     .form-stack { display: grid; gap: 12px; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

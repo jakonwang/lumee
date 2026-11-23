@@ -32,24 +32,46 @@
         </div>
 
         @if ($products !== null)
-            @if ($products->total() === 0)
+            @if ($products->total() === 0 && ! $filters['any'])
                 <div class="no-results">
                     <p>{{ __('No products found for “:q”.', ['q' => $q]) }}</p>
                     <p><a href="/collections/all" style="color:var(--rose-gold-700);text-decoration:underline;">{{ __('Browse all products') }}</a></p>
                 </div>
             @else
                 <p class="search-meta">{{ trans_choice(':count result for “:q”|:count results for “:q”', $products->total(), ['q' => $q]) }}</p>
-                @include($theme->view('partials.product-grid'), ['products' => $products])
+                @php($showFilters = $filters['groups'] || $filters['price'] || $filters['any'])
+                <div class="coll-grid {{ $showFilters ? 'has-filters' : '' }}">
+                    <div class="coll-body">
+                        @if ($showFilters)
+                            @include($theme->view('partials.filters'), ['filters' => $filters])
+                        @endif
+                        <div class="coll-main">
+                            @if ($filters['active'])
+                                <div class="f-active">
+                                    @foreach ($filters['active'] as $chip)
+                                        <a href="{{ $chip['url'] }}" class="f-chip" aria-label="{{ __('Remove') }} {{ $chip['label'] }}">{{ $chip['label'] }} <span aria-hidden="true">×</span></a>
+                                    @endforeach
+                                    <a href="{{ $clearFilters }}" class="f-clear">{{ __('Clear all') }}</a>
+                                </div>
+                            @endif
+                            @if ($products->isEmpty())
+                                <div class="no-results"><p>{{ __('No products match these filters.') }} <a href="{{ $clearFilters }}">{{ __('Clear all') }}</a></p></div>
+                            @else
+                                @include($theme->view('partials.product-grid'), ['products' => $products, 'columns' => $showFilters ? 3 : 4])
+                            @endif
 
-                @if ($products->hasPages())
-                    <nav class="pager" aria-label="{{ __('Pagination') }}">
-                        @if ($products->onFirstPage())<span class="disabled">‹</span>@else<a href="{{ $products->previousPageUrl() }}" rel="prev">‹</a>@endif
-                        @foreach ($products->getUrlRange(max(1, $products->currentPage() - 2), min($products->lastPage(), $products->currentPage() + 2)) as $page => $url)
-                            @if ($page === $products->currentPage())<span class="current" aria-current="page">{{ $page }}</span>@else<a href="{{ $url }}">{{ $page }}</a>@endif
-                        @endforeach
-                        @if ($products->hasMorePages())<a href="{{ $products->nextPageUrl() }}" rel="next">›</a>@else<span class="disabled">›</span>@endif
-                    </nav>
-                @endif
+                            @if ($products->hasPages())
+                                <nav class="pager" aria-label="{{ __('Pagination') }}">
+                                    @if ($products->onFirstPage())<span class="disabled">‹</span>@else<a href="{{ $products->previousPageUrl() }}" rel="prev">‹</a>@endif
+                                    @foreach ($products->getUrlRange(max(1, $products->currentPage() - 2), min($products->lastPage(), $products->currentPage() + 2)) as $page => $url)
+                                        @if ($page === $products->currentPage())<span class="current" aria-current="page">{{ $page }}</span>@else<a href="{{ $url }}">{{ $page }}</a>@endif
+                                    @endforeach
+                                    @if ($products->hasMorePages())<a href="{{ $products->nextPageUrl() }}" rel="next">›</a>@else<span class="disabled">›</span>@endif
+                                </nav>
+                            @endif
+                        </div>
+                    </div>
+                </div>
             @endif
         @endif
     </div>

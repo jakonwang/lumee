@@ -672,5 +672,20 @@
     "Recently viewed": "شوهد مؤخرًا",
     "Waiting for your payment": "في انتظار دفعتك",
     "Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.": "ادفع القسيمة أو إيصال الدفع الذي استلمته (OXXO أو boleto…) قبل انتهاء صلاحيته — أُرسلت تعليمات الدفع أيضًا إلى بريدك الإلكتروني. سيتم تأكيد طلبك تلقائيًا فور وصول الدفعة.",
-    "Lowest price in the 30 days before the discount: :price": "أدنى سعر خلال 30 يومًا قبل التخفيض: :price"
+    "Lowest price in the 30 days before the discount: :price": "أدنى سعر خلال 30 يومًا قبل التخفيض: :price",
+    "Continue with Google": "المتابعة باستخدام Google",
+    "or": "أو",
+    "Google sign-in didn’t work. Please try again or use your email.": "تعذّر تسجيل الدخول باستخدام Google. حاول مرة أخرى أو استخدم بريدك الإلكتروني.",
+    "You’re offline": "أنت غير متصل",
+    "Check your connection — the shop will be right here when you’re back.": "تحقق من اتصالك — سيبقى المتجر هنا عند عودتك.",
+    "Try again": "إعادة المحاولة",
+    "Hi! Looking for something? Ask me about sizes, materials, shipping or gift ideas.": "مرحبًا! هل تبحث عن شيء؟ اسألني عن المقاسات أو الخامات أو الشحن أو أفكار الهدايا.",
+    "Chat with our shopping assistant": "تحدث مع مساعد التسوق",
+    "Shopping assistant": "مساعد التسوق",
+    "AI · answers may not be perfect": "ذكاء اصطناعي · قد لا تكون الإجابات دقيقة تمامًا",
+    "Ask a question…": "اطرح سؤالًا…",
+    "Your question": "سؤالك",
+    "Send": "إرسال",
+    "Sorry, I can’t answer right now. Please try again in a moment.": "عذرًا، لا أستطيع الإجابة الآن. حاول مرة أخرى بعد قليل.",
+    "The shopping assistant is not available right now.": "مساعد التسوق غير متاح حاليًا."
 }

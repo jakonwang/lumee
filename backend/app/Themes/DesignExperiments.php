@@ -108,7 +108,8 @@ class DesignExperiments
             ->where('s.design_experiment_id', $e->id)->groupBy('s.design_arm')
             ->selectRaw('s.design_arm as arm, COUNT(*) as sessions, SUM(CASE WHEN s.added_to_cart THEN 1 ELSE 0 END) as carts, '
                 .'SUM(CASE WHEN s.order_id IS NOT NULL THEN 1 ELSE 0 END) as orders, '
-                .'SUM(CASE WHEN o.id IS NOT NULL AND o.cancelled_at IS NULL THEN o.total / COALESCE(NULLIF(o.exchange_rate, 0), 1) ELSE 0 END) as revenue')
+                .'SUM(CASE WHEN o.id IS NOT NULL AND o.cancelled_at IS NULL THEN o.total / COALESCE(NULLIF(o.exchange_rate, 0), 1) ELSE 0 END) as revenue, '
+                .'SUM(CASE WHEN o.id IS NOT NULL AND o.cancelled_at IS NULL THEN (o.total / COALESCE(NULLIF(o.exchange_rate, 0), 1)) * (o.total / COALESCE(NULLIF(o.exchange_rate, 0), 1)) ELSE 0 END) as revenue_sq')
             ->get()->keyBy('arm');
         $arm = function (string $k) use ($rows) {
             $r = $rows->get($k);
@@ -120,15 +121,27 @@ class DesignExperiments
         };
         $a = $arm('a');
         $b = $arm('b');
+        $sq = fn (string $k) => [(float) ($rows->get($k)->revenue ?? 0), (float) ($rows->get($k)->revenue_sq ?? 0)];
         $p = Experiments::zTest($a['sessions'], $a['orders'], $b['sessions'], $b['orders']);
         $pc = Experiments::zTest($a['sessions'], $a['carts'], $b['sessions'], $b['carts']);
         $ready = $a['sessions'] >= self::MIN_SESSIONS && $b['sessions'] >= self::MIN_SESSIONS && $p !== null && $p < 0.05;
+        $pr = Experiments::meanTest($a['sessions'], ...$sq('a'), ...[$b['sessions'], ...$sq('b')]);
+        // How many visits per version a difference this size needs; a long test that's still far off has no real difference
+        $needed = Experiments::sampleSize($a['conversion'] / 100, $b['conversion'] / 100);
+        $days = (int) ($e->started_at?->diffInDays($e->ended_at ?? now()) ?? 0);
+        $advice = match (true) {
+            $ready => 'decide',
+            $days >= 28 && ($needed === null || $needed > 3 * min($a['sessions'], $b['sessions'])) => 'no_difference',
+            default => 'wait',
+        };
 
         return [
             'a' => $a, 'b' => $b, 'p_value' => $p === null ? null : round($p, 4), 'p_cart' => $pc === null ? null : round($pc, 4),
             'uplift' => $a['conversion'] > 0 ? round(($b['conversion'] - $a['conversion']) / $a['conversion'] * 100, 1) : null,
             'leader' => $a['conversion'] === $b['conversion'] ? null : ($b['conversion'] > $a['conversion'] ? 'b' : 'a'),
             'ready' => $ready, 'min' => self::MIN_SESSIONS,
+            'p_revenue' => $pr === null ? null : round($pr, 4),   // revenue per visit, not just orders
+            'needed' => $needed, 'days' => $days, 'advice' => $advice,
         ];
     }
 

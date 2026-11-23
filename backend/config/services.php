@@ -75,6 +75,13 @@ return [
 
     // Lead finder: platform-wide fallbacks when a store hasn't set its own key
     'google_places' => ['key' => env('GOOGLE_PLACES_KEY')],
+
+    // "Continue with Google" for shoppers (one OAuth client for the whole platform; redirect URI: {APP_URL}/auth/google/callback)
+    'google_login' => [
+        'client_id' => env('GOOGLE_LOGIN_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_LOGIN_CLIENT_SECRET'),
+        'redirect_host' => env('GOOGLE_LOGIN_REDIRECT_HOST'),   // defaults to APP_URL
+    ],
     'anthropic' => ['key' => env('ANTHROPIC_API_KEY'), 'workspace' => env('ANTHROPIC_WORKSPACE_ID')],
     // Product research radar: Google Trends / Shopping through serpapi.com (stores can also set their own key)
     'serpapi' => ['key' => env('SERPAPI_KEY')],

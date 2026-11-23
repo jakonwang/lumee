@@ -59,6 +59,7 @@ export const router = createRouter({
         { path: 'online-store/pages/:id(\\d+)', name: 'page-edit', component: () => import('@/views/online-store/PageEditView.vue'), meta: { perm: 'online_store', title: t('编辑页面'), menu: 'pages' } },
         { path: 'online-store/translations', name: 'translations', component: () => import('@/views/online-store/TranslationsView.vue'), meta: { perm: 'online_store', title: t('翻译') } },
         { path: 'online-store/navigation', name: 'navigation', component: () => import('@/views/online-store/NavigationView.vue'), meta: { perm: 'online_store', title: t('导航菜单') } },
+        { path: 'online-store/assistant', name: 'assistant', component: () => import('@/views/online-store/AssistantView.vue'), meta: { perm: 'online_store', title: t('AI 导购') } },
         { path: 'online-store/design-performance', name: 'design-performance', component: () => import('@/views/online-store/DesignPerformanceView.vue'), meta: { perm: 'online_store', title: t('装修效果') } },
         { path: 'online-store/redirects', name: 'redirects', component: () => import('@/views/online-store/RedirectsView.vue'), meta: { perm: 'online_store', title: t('网址重定向') } },
         { path: 'online-store', name: 'online-store', component: () => import('@/views/online-store/ThemesView.vue'), meta: { perm: 'online_store', title: t('主题') } },

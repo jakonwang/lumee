@@ -137,6 +137,34 @@ class Experiments
     }
 
     /** Standard normal CDF (Abramowitz–Stegun approximation, error < 7.5e-8). */
+    /**
+     * Two-sided p-value for a difference in means (Welch, normal approximation — fine for hundreds of visits),
+     * from each arm's count, sum and sum of squares.
+     */
+    public static function meanTest(int $na, float $sa, float $qa, int $nb, float $sb, float $qb): ?float
+    {
+        if ($na < 2 || $nb < 2) {
+            return null;
+        }
+        $va = max(0, ($qa - $sa * $sa / $na) / ($na - 1));
+        $vb = max(0, ($qb - $sb * $sb / $nb) / ($nb - 1));
+        $se = sqrt($va / $na + $vb / $nb);
+
+        return $se > 0 ? 2 * (1 - self::normalCdf(abs($sb / $nb - $sa / $na) / $se)) : 1.0;
+    }
+
+    /** Visits per arm needed to detect the difference between two rates (80% power, 5% significance). */
+    public static function sampleSize(float $pa, float $pb): ?int
+    {
+        $d = abs($pb - $pa);
+        if ($d <= 0 || $pa <= 0) {
+            return null;
+        }
+        $p = ($pa + $pb) / 2;
+
+        return (int) ceil(15.7 * $p * (1 - $p) / ($d * $d));   // (1.96 + 0.84)² × 2 ≈ 15.7
+    }
+
     private static function normalCdf(float $z): float
     {
         $t = 1 / (1 + 0.2316419 * abs($z));

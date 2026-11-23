@@ -9,6 +9,8 @@ use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\ShippingRate;
 use App\Models\ThemeVersion;
+use App\Testing\Experiments;
+use App\Themes\DesignExperiments;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -132,6 +134,19 @@ class DesignExperimentTest extends TestCase
         $this->assertTrue($x['stats']['ready']);
         $this->assertEquals(300, $x['stats']['uplift']);
         $this->assertGreaterThan(0, $x['stats']['b']['revenue_per_session']);
+        $this->assertSame('decide', $x['stats']['advice']);
+        $this->assertNotNull($x['stats']['p_revenue']);
+
+        // A test that ran a month with almost no difference: advice is to stop and keep A
+        $e2 = DesignExperiment::withoutGlobalScope('store')->find($e['id']);
+        $this->assertSame(3827, Experiments::sampleSize(0.02, 0.03));
+        $this->assertNull(Experiments::sampleSize(0.02, 0.02));
+        DB::table('analytics_sessions')->where('design_arm', 'b')->whereNotNull('order_id')->limit(17)->get(['id'])
+            ->each(fn ($r) => DB::table('analytics_sessions')->where('id', $r->id)->update(['order_id' => null]));   // 7 orders vs 6
+        $e2->forceFill(['started_at' => now()->subDays(30)])->save();
+        $stats = DesignExperiments::stats($e2->fresh());
+        $this->assertSame([30, 'no_difference'], [$stats['days'], $stats['advice']]);
+        $e2->forceFill(['started_at' => now()->subDays(6)])->save();
 
         // Adopt B: it's published for everyone
         $this->as()->postJson("/api/admin/design/experiments/{$e['id']}/finish", ['winner' => 'b'])->assertOk()->assertJsonPath('data.status', 'finished');
@@ -200,5 +215,18 @@ class DesignExperimentTest extends TestCase
         // The weekly job updates the same week rather than adding another
         $this->artisan('lumee:design-insights')->assertSuccessful();
         $this->assertSame(1, DesignInsight::withoutGlobalScope('store')->count());
+    }
+
+    public function test_main_site_editor_lists_fields_country_sites_set_themselves(): void
+    {
+        $d = $this->as()->getJson("/api/admin/theme?market={$this->mx}")->json();
+        $c = $d['config'];
+        $c['settings']['header']['announcement_text'] = 'Envío gratis';
+        $this->as()->putJson('/api/admin/theme', [...$c, 'id' => $d['id'], 'market' => $this->mx])->assertOk();
+
+        $main = $this->as()->getJson('/api/admin/theme')->assertOk()->json();
+        $this->assertSame(['Mexico'], $main['market_overrides']['settings.header.announcement_text']);
+        $this->assertArrayNotHasKey('settings.colors.primary', $main['market_overrides']);
+        $this->assertSame([], (array) $this->as()->getJson("/api/admin/theme?market={$this->mx}")->json('market_overrides'));
     }
 }

@@ -659,5 +659,20 @@
     "Recently viewed": "最近チェックした商品",
     "Waiting for your payment": "お支払いをお待ちしています",
     "Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.": "お受け取りの支払票（OXXO、boleto など）で期限までにお支払いください。お支払い方法はメールでもお送りしています。入金が確認され次第、ご注文は自動的に確定します。",
-    "Lowest price in the 30 days before the discount: :price": "値下げ前30日間の最安値：:price"
+    "Lowest price in the 30 days before the discount: :price": "値下げ前30日間の最安値：:price",
+    "Continue with Google": "Google で続行",
+    "or": "または",
+    "Google sign-in didn’t work. Please try again or use your email.": "Google でのログインに失敗しました。もう一度お試しいただくか、メールアドレスをご利用ください。",
+    "You’re offline": "オフラインです",
+    "Check your connection — the shop will be right here when you’re back.": "接続を確認してください。戻ったらすぐにショップをご覧いただけます。",
+    "Try again": "再試行",
+    "Hi! Looking for something? Ask me about sizes, materials, shipping or gift ideas.": "こんにちは！お探しのものはありますか？サイズ、素材、配送、ギフトのアイデアなどお気軽にどうぞ。",
+    "Chat with our shopping assistant": "ショッピングアシスタントとチャット",
+    "Shopping assistant": "ショッピングアシスタント",
+    "AI · answers may not be perfect": "AI・回答が正確でない場合があります",
+    "Ask a question…": "質問を入力…",
+    "Your question": "ご質問",
+    "Send": "送信",
+    "Sorry, I can’t answer right now. Please try again in a moment.": "申し訳ありません、ただいま回答できません。少し時間をおいてお試しください。",
+    "The shopping assistant is not available right now.": "ショッピングアシスタントは現在ご利用いただけません。"
 }

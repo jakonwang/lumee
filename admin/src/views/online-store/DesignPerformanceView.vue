@@ -116,9 +116,15 @@ const editor = (marketId: number | null, ai?: string) => router.push({ name: 'th
               </tbody>
             </table>
             <p v-if="e.status === 'running'" class="verdict">
-              <template v-if="e.stats.ready">{{ t('{0} 版转化率更高（{1}），结果可信，可以做决定了。', [e.stats.leader === 'b' ? 'B' : 'A', e.stats.uplift === null ? '' : `${e.stats.uplift > 0 ? '+' : ''}${e.stats.uplift}%`]) }}</template>
+              <template v-if="e.stats.advice === 'decide'">
+                {{ t('{0} 版转化率更高（{1}），结果可信，可以做决定了。', [e.stats.leader === 'b' ? 'B' : 'A', e.stats.uplift === null ? '' : `${e.stats.uplift > 0 ? '+' : ''}${e.stats.uplift}%`]) }}
+                <span v-if="e.stats.p_revenue !== null && e.stats.p_revenue < 0.05" class="muted">{{ t('每次访问收入的差别也是可信的。') }}</span>
+                <span v-else class="muted">{{ t('每次访问收入的差别还不确定（订单金额波动大）。') }}</span>
+              </template>
+              <template v-else-if="e.stats.advice === 'no_difference'">{{ t('已经测试 {0} 天，两个版本差别很小。建议停止测试并保留 A 版，把精力放在更大的改动上。', [e.stats.days]) }}</template>
               <template v-else-if="Math.min(e.stats.a.sessions, e.stats.b.sessions) < e.stats.min">{{ t('每个版本至少需要 {0} 次访问才能判断，继续等待。', [e.stats.min]) }}</template>
               <template v-else>{{ t('两个版本差别还不明显，可以多跑几天。') }}</template>
+              <span v-if="e.stats.advice === 'wait' && e.stats.needed" class="muted"> {{ t('按目前的差距，每个版本大约需要 {0} 次访问（已有 {1} 次）。', [e.stats.needed.toLocaleString(), Math.min(e.stats.a.sessions, e.stats.b.sessions).toLocaleString()]) }}</span>
             </p>
             <p v-else-if="e.note" class="muted">{{ e.note }}</p>
             <div v-if="e.status === 'running'" class="test-actions">

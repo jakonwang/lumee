@@ -659,5 +659,20 @@
     "Recently viewed": "Visti di recente",
     "Waiting for your payment": "In attesa del pagamento",
     "Pay the voucher or bank slip you received (OXXO, boleto…) before it expires — the payment instructions were also sent to your email. Your order will be confirmed automatically once the payment arrives.": "Paga il voucher o il bollettino ricevuto (OXXO, boleto…) prima della scadenza: le istruzioni di pagamento sono state inviate anche alla tua email. L’ordine verrà confermato automaticamente appena riceviamo il pagamento.",
-    "Lowest price in the 30 days before the discount: :price": "Prezzo più basso nei 30 giorni precedenti lo sconto: :price"
+    "Lowest price in the 30 days before the discount: :price": "Prezzo più basso nei 30 giorni precedenti lo sconto: :price",
+    "Continue with Google": "Continua con Google",
+    "or": "oppure",
+    "Google sign-in didn’t work. Please try again or use your email.": "L’accesso con Google non è riuscito. Riprova o usa la tua email.",
+    "You’re offline": "Sei offline",
+    "Check your connection — the shop will be right here when you’re back.": "Controlla la connessione: il negozio ti aspetta quando torni.",
+    "Try again": "Riprova",
+    "Hi! Looking for something? Ask me about sizes, materials, shipping or gift ideas.": "Ciao! Cerchi qualcosa? Chiedimi di taglie, materiali, spedizioni o idee regalo.",
+    "Chat with our shopping assistant": "Chatta con il nostro assistente",
+    "Shopping assistant": "Assistente per gli acquisti",
+    "AI · answers may not be perfect": "IA · le risposte potrebbero non essere perfette",
+    "Ask a question…": "Fai una domanda…",
+    "Your question": "La tua domanda",
+    "Send": "Invia",
+    "Sorry, I can’t answer right now. Please try again in a moment.": "Spiacente, ora non riesco a rispondere. Riprova tra un attimo.",
+    "The shopping assistant is not available right now.": "L’assistente per gli acquisti non è disponibile al momento."
 }

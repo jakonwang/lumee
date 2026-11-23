@@ -7,6 +7,7 @@ use App\Models\ProductImage;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -83,6 +84,9 @@ class StorefrontPerformanceTest extends TestCase
         $this->get('/_img/480/stores/../.env')->assertNotFound();
         $this->get('/_img/480/stores/1/products/missing.jpg')->assertNotFound();
         $this->assertSame('https://cdn.example.com/a.jpg', Img::url('https://cdn.example.com/a.jpg', 480));
+        // Another site's image with a look-alike path is left alone; this app's own hosts are recognised
+        $this->assertNull(Img::path('https://other-shop.example/storage/'.$path));
+        $this->assertSame($path, Img::path('http://localhost/storage/'.$path));
 
         // Deleting the image removes its sizes too
         ProductImage::withoutGlobalScope('store')->find($img['id'])->delete();
@@ -186,5 +190,50 @@ class StorefrontPerformanceTest extends TestCase
         // The lookup it uses: in this site's prices, with a card-sized image
         $this->getJson(self::HOST.'/wishlist/products?handles=sun-ring,moon-ring,nope')->assertOk()->assertJsonCount(2, 'data')
             ->assertJsonPath('data.1.sold_out', true);
+    }
+
+    public function test_search_results_can_be_filtered(): void
+    {
+        $this->ring('Moon ring', [[['Color' => 'Gold'], 40, 3]]);
+        $this->ring('Sun ring', [[['Color' => 'Silver'], 90, 2]]);
+        $this->ring('Leaf necklace', [[['Color' => 'Gold'], 120, 1]]);
+        $this->shopper()->get(self::HOST.'/search?q=ring')->assertOk()->assertSee('2 results')->assertSee('In stock only')
+            ->assertSee('name="q" value="ring"', false);
+        $this->shopper()->get(self::HOST.'/search?q=ring&f[o][Color][]=Silver')->assertOk()->assertSee('Sun ring')->assertDontSee('Moon ring')->assertSee('Clear all');
+        $this->shopper()->get(self::HOST.'/search?q=ring&f[min]=200')->assertOk()->assertSee('No products match these filters.');
+    }
+
+    public function test_storefront_is_installable(): void
+    {
+        $html = $this->shopper()->get(self::HOST.'/')->assertOk()->getContent();
+        $this->assertStringContainsString('<link rel="manifest" href="/manifest.webmanifest">', $html);
+        $this->assertStringContainsString("serviceWorker.register('/sw.js')", $html);
+
+        $m = $this->get(self::HOST.'/manifest.webmanifest')->assertOk()->assertHeader('Content-Type', 'application/manifest+json')->json();
+        $this->assertSame(['Shop A', 'standalone', '/'], [$m['name'], $m['display'], $m['scope']]);
+        $icon = $this->get(parse_url(self::HOST, PHP_URL_SCHEME).'://'.parse_url(self::HOST, PHP_URL_HOST).strtok($m['icons'][1]['src'], '?'))->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->assertSame(512, imagesx(imagecreatefromstring($icon->getContent())));
+        $this->get(self::HOST.'/pwa-icon/77.png')->assertNotFound();
+        $this->get(self::HOST.'/sw.js')->assertOk()->assertSee("caches.match('/offline')", false);
+        $this->get(self::HOST.'/offline')->assertOk()->assertSee('Shop A')->assertSee('Try again');
+    }
+
+    public function test_big_sitemaps_are_split_into_pages(): void
+    {
+        foreach (['A ring', 'B ring', 'C ring'] as $t) {
+            $this->ring($t, [[['Size' => '6'], 50, 3]]);
+        }
+        $all = $this->get(self::HOST.'/sitemap.xml')->assertOk()->getContent();
+        $this->assertStringContainsString('<urlset', $all);
+        $count = substr_count($all, '<url>');
+
+        config(['lumee.sitemap_page_size' => 2]);
+        Cache::flush();
+        $index = $this->get(self::HOST.'/sitemap.xml')->assertOk()->getContent();
+        $this->assertStringContainsString('<sitemapindex', $index);
+        $this->assertSame((int) ceil($count / 2), substr_count($index, '<sitemap>'));
+        $this->assertStringContainsString(self::HOST.'/sitemap.xml?page=1', $index);
+        $this->assertSame(2, substr_count($this->get(self::HOST.'/sitemap.xml?page=1')->assertOk()->getContent(), '<url>'));
+        $this->get(self::HOST.'/sitemap.xml?page=99')->assertNotFound();
     }
 }

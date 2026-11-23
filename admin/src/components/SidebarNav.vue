@@ -59,7 +59,7 @@ const groups: Group[] = [
     sections: [{
       key: 'online-store', label: t('在线商店'), icon: StorefrontOutline, to: 'online-store',
       children: [
-        { name: 'design-performance', label: t('装修效果') },
+        { name: 'design-performance', label: t('装修效果') }, { name: 'assistant', label: t('AI 导购') },
         { name: 'pages', label: t('页面') }, { name: 'blog', label: t('博客') },
         { name: 'navigation', label: t('导航菜单') }, { name: 'redirects', label: t('网址重定向') }, { name: 'translations', label: t('翻译') },
       ],

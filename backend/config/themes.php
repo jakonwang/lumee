@@ -263,7 +263,97 @@ $fresh['settings']['typography']['fields']['heading_font']['options'] = [
     'Noto Sans SC' => '思源黑体',
 ];
 
+/*
+| Bold — dense, high-energy promo style (big sale banners, black & white with a strong red accent, square corners).
+| Like Fresh it reuses Aurora's templates and only restyles them.
+*/
+$bold = array_replace_recursive($aurora, [
+    'name' => 'Bold',
+    'description' => '高密度促销风格：黑白配强烈红色点缀、直角、粗体大写标题，适合快时尚和大促',
+    'extends' => 'aurora',
+    'placeholder' => '/brand/placeholder.svg',
+    'settings' => [
+        'colors' => ['fields' => [
+            'primary' => ['default' => '#111111'],
+            'background' => ['default' => '#FFFFFF'],
+            'text' => ['default' => '#111111'],
+            'accent' => ['label' => '点缀色（促销标签、限时价）', 'default' => '#E4202C'],
+        ]],
+        'typography' => ['fields' => [
+            'heading_font' => ['default' => 'Oswald'],
+            'body_font' => ['default' => 'Inter'],
+        ]],
+        'header' => ['fields' => [
+            'announcement_text' => ['default' => 'FREE SHIPPING OVER $49 · EXTRA 15% OFF FIRST ORDER'],
+        ]],
+        'product' => ['fields' => [
+            'perks' => ['default' => implode("
+", ['Free shipping over $49', 'Free returns within 30 days', 'Secure payment'])],
+        ]],
+    ],
+    'sections' => [
+        'hero' => ['fields' => [
+            'eyebrow' => ['default' => 'Limited time'],
+            'heading' => ['default' => 'UP TO 70% OFF'],
+            'text' => ['default' => 'New drops every day. Prices this low won’t last.'],
+            'button_label' => ['default' => 'Shop the sale'],
+            'overlay' => ['default' => 40],
+        ]],
+    ],
+]);
+$bold['settings']['typography']['fields']['heading_font']['options'] = [
+    'Oswald' => 'Oswald（窄体粗体）',
+    'Archivo Narrow' => 'Archivo Narrow（紧凑现代）',
+    'Bebas Neue' => 'Bebas Neue（海报大字）',
+    'Noto Sans SC' => '思源黑体',
+];
+
+/*
+| Luxe — minimal premium style: lots of white space, fine lines, high-contrast serif, black on ivory.
+*/
+$luxe = array_replace_recursive($aurora, [
+    'name' => 'Luxe',
+    'description' => '极简高级风格：大量留白、细线条、高对比衬线字体，适合高端品牌和精品',
+    'extends' => 'aurora',
+    'placeholder' => '/brand/placeholder.svg',
+    'settings' => [
+        'colors' => ['fields' => [
+            'primary' => ['default' => '#1A1A1A'],
+            'background' => ['default' => '#FAF8F4'],
+            'text' => ['default' => '#1A1A1A'],
+            'accent' => ['label' => '点缀色（标签）', 'default' => '#C8B48A'],
+        ]],
+        'typography' => ['fields' => [
+            'heading_font' => ['default' => 'Bodoni Moda'],
+            'body_font' => ['default' => 'Jost'],
+        ]],
+        'header' => ['fields' => [
+            'announcement_text' => ['default' => 'Complimentary shipping & returns'],
+        ]],
+        'product' => ['fields' => [
+            'perks' => ['default' => implode("
+", ['Complimentary shipping', 'Returns within 30 days', 'Signature gift box'])],
+        ]],
+    ],
+    'sections' => [
+        'hero' => ['fields' => [
+            'eyebrow' => ['default' => 'The new collection'],
+            'text' => ['default' => 'Considered design, made to last.'],
+            'button_label' => ['default' => 'Discover'],
+            'overlay' => ['default' => 25],
+        ]],
+    ],
+]);
+$luxe['settings']['typography']['fields']['heading_font']['options'] = [
+    'Bodoni Moda' => 'Bodoni Moda（高对比衬线）',
+    'Cormorant Garamond' => 'Cormorant Garamond（优雅衬线）',
+    'Playfair Display' => 'Playfair Display（杂志感）',
+    'Noto Serif SC' => '思源宋体',
+];
+
 return [
     'aurora' => $aurora,
     'fresh' => $fresh,
+    'bold' => $bold,
+    'luxe' => $luxe,
 ];

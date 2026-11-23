@@ -76,7 +76,7 @@ class StripeWebhookController extends Controller
 
             if (($session['payment_status'] ?? null) === 'paid') {
                 $order->markPaid($session['payment_intent'] ?? $session['id']);
-            } elseif ($event['type'] === 'checkout.session.completed' && ! $order->isPaid()) {
+            } elseif ($event['type'] === 'checkout.session.completed' && ! $order->isPaid() && ! $order->events()->where('type', 'payment_pending')->exists()) {   // Stripe may retry
                 $order->log('payment_pending', __('买家选择了到店或银行付款（OXXO、boleto 等），付款后订单会自动标记为已付款'));
             } elseif ($event['type'] === 'checkout.session.async_payment_failed' && ! $order->isPaid() && ! $order->isCancelled()) {
                 // The voucher expired unpaid: free the stock

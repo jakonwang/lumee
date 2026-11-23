@@ -31,6 +31,13 @@
     @if ($seoImage)<meta property="og:image" content="{{ $seoImage }}">@endif
     <meta name="twitter:card" content="{{ $seoImage ? 'summary_large_image' : 'summary' }}">
     <link rel="icon" href="/favicon.png">
+    @unless ($theme->preview)
+        {{-- Installable app: "Add to home screen" on phones --}}
+        <link rel="manifest" href="/manifest.webmanifest">
+        <meta name="theme-color" content="{{ $theme->setting('colors.primary') }}">
+        <link rel="apple-touch-icon" href="/pwa-icon/180.png">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+    @endunless
     <link rel="stylesheet" href="/css/lumee-tokens.css">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ $theme->fontsUrl() }}">
@@ -331,6 +338,12 @@
         })();
     </script>
     {{-- Block scripts (slideshow, countdowns, tabs…), after the page so they find their elements --}}
+    @if (! $theme->preview && \App\Assistant\ShoppingAssistant::available($store))
+        @include('storefront.assistant')
+    @endif
     @stack('scripts')
+    @unless ($theme->preview)
+        <script>if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });</script>
+    @endunless
 </body>
 </html>

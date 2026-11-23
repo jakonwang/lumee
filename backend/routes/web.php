@@ -70,6 +70,7 @@ $storefront = function () {
         Route::post('/quotes/{token}/decline', [$b2b, 'decline'])->whereUuid('token');
         Route::post('/products/{handle}/notify', [StorefrontController::class, 'notifyMe'])->middleware('throttle:10,1');
         Route::get('/wishlist', [StorefrontController::class, 'wishlist']);
+        Route::post('/assistant', [\App\Http\Controllers\Storefront\AssistantController::class, 'ask'])->middleware('throttle:20,1');   // AI shopping assistant
         Route::get('/wishlist/products', [StorefrontController::class, 'wishlistProducts'])->middleware('throttle:60,1');
         Route::get('/orders/{token}', [CheckoutController::class, 'order'])->whereUuid('token')->name('store.order');
         Route::get('/affiliate/{token}', [StorefrontController::class, 'affiliate'])->where('token', '[A-Za-z0-9]{48}');
@@ -79,6 +80,8 @@ $storefront = function () {
         // Customer accounts
         Route::prefix('account')->group(function () {
             Route::get('login', [AccountController::class, 'showLogin'])->name('store.login');
+            Route::get('google', [\App\Http\Controllers\Storefront\GoogleLoginController::class, 'start'])->middleware('throttle:customer-login');
+            Route::get('google/complete', [\App\Http\Controllers\Storefront\GoogleLoginController::class, 'complete'])->middleware('throttle:customer-login');
             Route::post('login', [AccountController::class, 'login'])->middleware('throttle:customer-login');
             Route::get('register', [AccountController::class, 'showRegister']);
             Route::post('register', [AccountController::class, 'register'])->middleware('throttle:customer-register');
@@ -119,6 +122,12 @@ Route::middleware(['store.front', 'store.redirects', 'store.locale', 'store.open
     // Served per store (the static public/robots.txt was removed so this route answers)
     Route::get('/robots.txt', [ContentController::class, 'robots'])->name('store.robots');
     Route::get('/sitemap.xml', [ContentController::class, 'sitemap'])->middleware('store.required');
+    // Installable app (PWA): manifest, icons, offline page, service worker (only at the root, so it covers every site prefix)
+    $pwa = \App\Http\Controllers\Storefront\PwaController::class;
+    Route::get('/manifest.webmanifest', [$pwa, 'manifest'])->middleware('store.required');
+    Route::get('/pwa-icon/{size}.png', [$pwa, 'icon'])->whereNumber('size')->middleware('store.required');
+    Route::get('/sw.js', [$pwa, 'worker'])->middleware('store.required');
+    Route::get('/offline', [$pwa, 'offline'])->middleware('store.required');
     $storefront();
 });
 Route::prefix('{locale}')
@@ -139,6 +148,9 @@ Route::get('/_img/{width}/{path}', \App\Http\Controllers\Storefront\ImageVariant
     ->withoutMiddleware([\Illuminate\Session\Middleware\StartSession::class, \Illuminate\View\Middleware\ShareErrorsFromSession::class,
         \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class, \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class])
     ->middleware('throttle:600,1');
+
+// Google sign-in for shoppers comes back here on the platform host, then continues on the shop's own host
+Route::get('/auth/google/callback', [\App\Http\Controllers\Storefront\GoogleLoginController::class, 'callback'])->middleware('throttle:60,1');
 
 // Payment provider webhooks (no CSRF, no store context — see controller)
 Route::post('/webhooks/stripe', StripeWebhookController::class);

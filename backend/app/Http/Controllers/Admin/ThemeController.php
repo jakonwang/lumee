@@ -328,10 +328,32 @@ class ThemeController extends Controller
                 'own_sections' => is_array(($layer?->draft ?? $layer?->published)['sections'] ?? null),
             ] : null,
             'base' => $market ? $this->markets->base($row, true) : null,
+            // Main site: which fields country sites set themselves (changing them here won't reach those sites)
+            'market_overrides' => $market ? (object) [] : $this->marketOverrides($layers),
             'ai' => \App\Themes\AiDesigner::status($store),
             // A design A/B test running on this site (its B is a frozen copy of the draft at the start)
             'experiment' => ($e = app(\App\Themes\DesignExperiments::class)->running($row->id, $market?->id)) ? $e->only('id', 'name', 'started_at') : null,
         ]);
+    }
+
+    /**
+     * "settings.colors.primary" / "sections.{block id}.{field}" / "sections.*" (own home page) => market names.
+     *
+     * @param  iterable<int, ?\App\Models\StoreThemeMarket>  $layers  by market id
+     */
+    private function marketOverrides($layers): object
+    {
+        $names = Market::pluck('name', 'id');
+        $out = [];
+        foreach ($layers as $marketId => $layer) {
+            foreach (array_keys(MarketThemes::localizedKeys($layer ? ($layer->draft ?? $layer->published) : null)) as $key) {
+                if (isset($names[$marketId])) {
+                    $out[$key][] = $names[$marketId];
+                }
+            }
+        }
+
+        return (object) $out;
     }
 
     /** Campaign landing pages (layout "blocks") that aren't designed yet start from the default blocks. */

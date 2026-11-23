@@ -139,6 +139,9 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stri
 function settingOver(g: string | number, k: string | number) {
   return !!market.value && !!base.value && !same(config.value?.settings[g]?.[k], base.value.settings[g]?.[k])
 }
+// Main site: country sites that set this field themselves (a change here won't reach them)
+const marketOverrides = ref<Record<string, string[]>>({})
+const overriddenBy = (key: string) => (market.value ? [] : marketOverrides.value[key] ?? [])
 function sectionOver(s: Section, k: string) {
   if (!followsMain.value || !base.value) return false
   const b = allBlocks(base.value).find((x) => x.id === s.id)
@@ -260,6 +263,7 @@ function apply(data: ThemeResponse) {
   storefrontUrl.value = data.storefront_url
   hasUnpublished.value = data.has_unpublished_changes
   experiment.value = data.experiment
+  marketOverrides.value = data.market_overrides ?? {}
   places.value = data.places
   if (!data.places.some((p) => p.key === place.value)) place.value = 'home'
   previewUrl.value = placeInfo.value?.preview_url ?? data.preview_url
@@ -691,6 +695,9 @@ onBeforeRouteLeave(async () => {
           <RouterLink :to="{ name: 'design-performance' }">{{ t('查看结果') }}</RouterLink>
         </div>
         <div v-if="proposalUrl" class="proposal-note">{{ t('预览中是 AI 方案（还没有保存）') }}</div>
+        <div v-if="!market && place === 'home' && overriddenBy('sections.*').length" class="mk-note home-note">
+          {{ t('{0} 有自己的首页，这里首页的改动不会影响这些站点', [overriddenBy('sections.*').join('、')]) }}
+        </div>
         <div v-if="market" class="market-note">
           {{ t('正在装修「{0}」站点（{1}）。没改过的内容跟随主站点，改过的会标出「本市场」。', [market.name, market.locale]) }}
         </div>
@@ -718,6 +725,9 @@ onBeforeRouteLeave(async () => {
               <div v-if="sectionOver(selected, String(key))" class="over-bar">
                 <span>{{ t('本市场') }}</span>
                 <button type="button" @click="restoreSectionField(selected, String(key))">{{ t('恢复主站点') }}</button>
+              </div>
+              <div v-else-if="overriddenBy(`sections.${selected.id}.${key}`).length" class="mk-note">
+                {{ t('{0} 单独设置了这一项，这里的修改不会影响这些站点', [overriddenBy(`sections.${selected.id}.${key}`).join('、')]) }}
               </div>
             </div>
           </div>
@@ -808,6 +818,9 @@ onBeforeRouteLeave(async () => {
                     <div v-if="settingOver(gkey, key)" class="over-bar">
                       <span>{{ t('本市场') }}</span>
                       <button type="button" @click="restoreSetting(gkey, key)">{{ t('恢复主站点') }}</button>
+                    </div>
+                    <div v-else-if="overriddenBy(`settings.${gkey}.${key}`).length" class="mk-note">
+                      {{ t('{0} 单独设置了这一项，这里的修改不会影响这些站点', [overriddenBy(`settings.${gkey}.${key}`).join('、')]) }}
                     </div>
                   </div>
                 </NCollapseItem>
@@ -931,6 +944,8 @@ onBeforeRouteLeave(async () => {
 .kit:hover { border-color: var(--brand-300); background: var(--brand-50); }
 .kit strong { font-size: 13px; font-weight: 600; }
 .kit span { font-size: 12px; color: var(--ink-muted); line-height: 1.4; }
+.mk-note.home-note { margin: 0; border-radius: 0; padding: 8px 16px; }
+.mk-note { margin: -4px 0 10px; padding: 6px 10px; border-radius: 6px; background: #fffbeb; color: #92400e; font-size: 12px; line-height: 1.5; }
 .market-note { padding: 10px 16px; font-size: 12.5px; line-height: 1.5; background: var(--brand-50); color: var(--brand-700); border-bottom: 1px solid var(--border); }
 .mode { margin-bottom: 12px; font-size: 12.5px; }
 .mode :deep(.n-alert-body__content) { display: grid; justify-items: start; }

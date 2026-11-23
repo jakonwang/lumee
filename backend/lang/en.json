@@ -1030,5 +1030,13 @@
   "显示筛选（尺码、颜色、价格、有货）": "Show filters (size, color, price, in stock)",
   "最近浏览": "Recently viewed",
   "最多显示": "Show up to",
-  "买家选择了到店或银行付款（OXXO、boleto 等），付款后订单会自动标记为已付款": "The buyer chose to pay at a shop or bank (OXXO, boleto…). The order will be marked paid automatically once they pay"
+  "买家选择了到店或银行付款（OXXO、boleto 等），付款后订单会自动标记为已付款": "The buyer chose to pay at a shop or bank (OXXO, boleto…). The order will be marked paid automatically once they pay",
+  "高密度促销风格：黑白配强烈红色点缀、直角、粗体大写标题，适合快时尚和大促": "Dense promo style: black and white with a strong red accent, square corners, bold uppercase headings — for fast fashion and big sales",
+  "极简高级风格：大量留白、细线条、高对比衬线字体，适合高端品牌和精品": "Minimal premium style: generous white space, fine lines, high-contrast serif type — for luxury brands and boutiques",
+  "点缀色（促销标签、限时价）": "Accent color (sale badges, limited-time prices)",
+  "点缀色（标签）": "Accent color (badges)",
+  "Oswald（窄体粗体）": "Oswald (condensed, bold)",
+  "Archivo Narrow（紧凑现代）": "Archivo Narrow (compact, modern)",
+  "Bebas Neue（海报大字）": "Bebas Neue (poster headlines)",
+  "Bodoni Moda（高对比衬线）": "Bodoni Moda (high-contrast serif)"
 }

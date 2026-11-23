@@ -51,9 +51,9 @@ async function submit() {
         <div class="brand"><img src="/platform-mark.svg" alt="" /> Lumée</div>
         <h2 class="display">{{ t('几分钟开一家') }}<br />{{ t('卖向全球的独立站') }}</h2>
         <ul class="points">
-          <li>{{ t('拖拽装修，实时预览') }}</li>
-          <li>{{ t('全球收款，订单自动通知') }}</li>
-          <li>{{ t('多规格商品与分类管理') }}</li>
+          <li>{{ t('一个国家一个站点，币种、语言、价格各自设置') }}</li>
+          <li>{{ t('AI 按当地习惯装修店铺') }}</li>
+          <li>{{ t('选品、收款、物流、营销一站搞定') }}</li>
         </ul>
       </div>
     </aside>

@@ -2,6 +2,7 @@
 
 namespace App\Media;
 
+use App\Models\Domain;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 
@@ -39,6 +40,9 @@ class Img
         $prefix = str_starts_with($base, 'http') && config('filesystems.disks.'.config('lumee.media_disk').'.driver') === 'local'
             ? (string) parse_url($base, PHP_URL_PATH)
             : $base;
+        if (str_starts_with($prefix, '/') && ($host = parse_url($url, PHP_URL_HOST)) && ! self::ownHost((string) $host, $base)) {
+            return null;   // another site's image that happens to have a similar path
+        }
         $candidate = str_starts_with($prefix, '/') ? (string) parse_url($url, PHP_URL_PATH) : $url;
         if ($prefix === '' || ! str_starts_with($candidate, $prefix)) {
             return null;
@@ -46,6 +50,19 @@ class Img
         $path = rawurldecode(substr($candidate, strlen($prefix)));
 
         return self::resizable($path) ? $path : null;
+    }
+
+    /** A host this app serves uploads from: APP_URL's / the disk URL's host, this request's host, or a store host. */
+    private static function ownHost(string $host, string $base): bool
+    {
+        $host = strtolower($host);
+        $mine = array_filter([parse_url($base, PHP_URL_HOST), parse_url((string) config('app.url'), PHP_URL_HOST), app()->runningInConsole() ? null : request()->getHost()]);
+        if (in_array($host, array_map('strtolower', $mine), true)) {
+            return true;
+        }
+        $root = strtolower((string) config('lumee.storefront_domain'));
+
+        return ($root !== '' && str_ends_with($host, '.'.$root)) || Domain::withoutGlobalScopes()->where('host', $host)->exists();
     }
 
     public static function resizable(string $path): bool

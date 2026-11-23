@@ -2,14 +2,29 @@
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Analytics\Visits;
+use App\Catalog\CollectionFilters;
+use App\Currency\CurrencySettings;
+use App\Currency\Presentment;
 use App\Http\Controllers\Controller;
+use App\I18n\Localization;
+use App\Markets\MarketContext;
+use App\Models\BlogPost;
 use App\Models\Collection;
+use App\Models\MarketProductExclusion;
 use App\Models\Page;
 use App\Models\Product;
+use App\Models\Store;
+use App\Storefront\PageCache;
 use App\Tenancy\CurrentStore;
+use App\Themes\ThemeContext;
+use App\Themes\ThemeService;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 
 /** Content pages, product search, and the files search engines read (sitemap.xml, robots.txt). */
 class ContentController extends Controller
@@ -19,8 +34,8 @@ class ContentController extends Controller
         $page = Page::published()->where('handle', $handle)->firstOrFail();
         if ($page->layout === 'blocks') {
             // Campaign landing page: its blocks from the theme (defaults until it's designed)
-            $theme = app(\App\Themes\ThemeContext::class);
-            $blocks = $theme->pageSections($page->id) ?? app(\App\Themes\ThemeService::class)->pageDefaults($theme->theme, $page->id);
+            $theme = app(ThemeContext::class);
+            $blocks = $theme->pageSections($page->id) ?? app(ThemeService::class)->pageDefaults($theme->theme, $page->id);
 
             return view($current->themeView('landing'), compact('page', 'blocks'));
         }
@@ -32,6 +47,7 @@ class ContentController extends Controller
     {
         $q = mb_substr(trim((string) $request->query('q')), 0, 100);
         $products = null;
+        $filters = ['groups' => [], 'price' => null, 'active' => [], 'any' => false];
 
         if ($q !== '') {
             $like = '%'.addcslashes($q, '%_\\').'%';
@@ -44,75 +60,60 @@ class ContentController extends Controller
                     ->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', $like)))
                 // Title matches first, then newest
                 ->orderByRaw('CASE WHEN title LIKE ? THEN 0 ELSE 1 END', [$like])
-                ->latest('id')
+                ->latest('id');
+            $filters = app(CollectionFilters::class)->apply($products, $request);   // same filters as collections
+            $products = $products
                 ->with('variants:id,product_id,price,compare_at_price,inventory_quantity,position')
                 ->paginate(24)
                 ->withQueryString();
-            if ((int) $request->query('page', 1) <= 1) {
-                app(\App\Analytics\Visits::class)->search($q, $products->total());   // what shoppers look for (and don't find)
+            if ((int) $request->query('page', 1) <= 1 && ! $filters['any']) {
+                app(Visits::class)->search($q, $products->total());   // what shoppers look for (and don't find)
             }
         }
 
-        return view($current->themeView('search'), compact('q', 'products'));
+        $clearFilters = CollectionFilters::clearUrl($request);
+
+        return view($current->themeView('search'), compact('q', 'products', 'filters', 'clearFilters'));
     }
 
     /** Remember the shopper's display currency for a year (only currencies the store offers). */
-    public function currency(Request $request, CurrentStore $current): \Illuminate\Http\RedirectResponse
+    public function currency(Request $request, CurrentStore $current): RedirectResponse
     {
         $code = (string) $request->input('currency');
         $back = redirect()->back(fallback: '/');
-        if (! in_array($code, \App\Currency\CurrencySettings::for($current->getOrFail())->offered(), true)) {
+        if (! in_array($code, CurrencySettings::for($current->getOrFail())->offered(), true)) {
             return $back;
         }
 
-        return $back->withCookie(cookie()->make(\App\Currency\Presentment::COOKIE, $code, 60 * 24 * 365, null, null, null, true, false, 'lax'));
+        return $back->withCookie(cookie()->make(Presentment::COOKIE, $code, 60 * 24 * 365, null, null, null, true, false, 'lax'));
     }
 
-    public function sitemap(CurrentStore $current): Response
+    public function sitemap(Request $request, CurrentStore $current): Response
     {
         $store = $current->getOrFail();
         $base = $store->storefrontUrl();
-        $urls = [['loc' => $base.'/', 'lastmod' => $store->updated_at], ['loc' => $base.'/collections/all', 'lastmod' => null]];
+        // Built once per store version (saving products, pages, markets… clears it), kept an hour
+        $urls = Cache::remember('sitemap:'.$store->id.':'.PageCache::version($store->id), 3600,
+            fn () => $this->sitemapUrls($store, $base));
+        // The sitemap protocol allows 50,000 URLs per file: bigger sites get an index of pages (?page=N)
+        $per = max(1, (int) config('lumee.sitemap_page_size', 40000));
+        $pages = max(1, (int) ceil(count($urls) / $per));
+        $page = (int) $request->query('page', 0);
 
-        foreach (Collection::published()->get(['handle', 'updated_at']) as $c) {
-            $urls[] = ['loc' => $base.'/collections/'.rawurlencode($c->handle), 'lastmod' => $c->updated_at];
-        }
-        foreach (Product::active()->latest('updated_at')->limit(10000)->get(['id', 'handle', 'updated_at']) as $p) {
-            $urls[] = ['loc' => $base.'/products/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at, 'product_id' => $p->id];
-        }
-        foreach (Page::published()->get(['handle', 'updated_at']) as $p) {
-            $urls[] = ['loc' => $base.'/pages/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at];
-        }
-        $posts = \App\Models\BlogPost::live()->latest('published_at')->limit(5000)->get(['handle', 'updated_at']);
-        if ($posts->isNotEmpty()) {
-            $urls[] = ['loc' => $base.'/blog', 'lastmod' => $posts->max('updated_at')];
-            foreach ($posts as $p) {
-                $urls[] = ['loc' => $base.'/blog/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at];
+        if ($pages > 1 && $page === 0) {
+            $xml = '<?xml version="1.0" encoding="UTF-8"?>'.'
+'.'<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'.'
+';
+            for ($n = 1; $n <= $pages; $n++) {
+                $xml .= '  <sitemap><loc>'.htmlspecialchars($base.'/sitemap.xml?page='.$n, ENT_XML1).'</loc></sitemap>'.'
+';
             }
-        }
 
-        // Every page again under each extra published language ("/fr/products/…")
-        $originals = $urls;
-        foreach (array_slice(\App\I18n\Localization::enabled($store), 1) as $code) {
-            foreach ($originals as $u) {
-                $path = substr($u['loc'], strlen($base));
-                $urls[] = ['loc' => $base.'/'.$code.($path === '/' ? '' : $path), 'lastmod' => $u['lastmod']];
-            }
+            return response($xml.'</sitemapindex>'.'
+', 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
         }
-
-        // …and under each market and its languages ("/es-mx/products/…"), minus products a market doesn't sell
-        foreach (\App\Markets\MarketContext::live($store) as $m) {
-            $excluded = \App\Models\MarketProductExclusion::where('market_id', $m->id)->pluck('product_id')->flip();
-            foreach ($m->languages() as $code) {
-                foreach ($originals as $u) {
-                    if (isset($u['product_id']) && $excluded->has($u['product_id'])) {
-                        continue;
-                    }
-                    $path = substr($u['loc'], strlen($base));
-                    $urls[] = ['loc' => $base.$m->prefix($code).($path === '/' ? '' : $path), 'lastmod' => $u['lastmod']];
-                }
-            }
-        }
+        abort_if($page > $pages || $page < 0, 404);
+        $urls = array_slice($urls, (max(1, $page) - 1) * $per, $per);
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n".'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
         foreach ($urls as $u) {
@@ -144,5 +145,53 @@ class ContentController extends Controller
         ];
 
         return response(implode("\n", $lines)."\n", 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    /** @return list<array{loc: string, lastmod: ?CarbonInterface}> */
+    private function sitemapUrls(Store $store, string $base): array
+    {
+        $urls = [['loc' => $base.'/', 'lastmod' => $store->updated_at], ['loc' => $base.'/collections/all', 'lastmod' => null]];
+
+        foreach (Collection::published()->get(['handle', 'updated_at']) as $c) {
+            $urls[] = ['loc' => $base.'/collections/'.rawurlencode($c->handle), 'lastmod' => $c->updated_at];
+        }
+        foreach (Product::active()->latest('updated_at')->limit(10000)->get(['id', 'handle', 'updated_at']) as $p) {
+            $urls[] = ['loc' => $base.'/products/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at, 'product_id' => $p->id];
+        }
+        foreach (Page::published()->get(['handle', 'updated_at']) as $p) {
+            $urls[] = ['loc' => $base.'/pages/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at];
+        }
+        $posts = BlogPost::live()->latest('published_at')->limit(5000)->get(['handle', 'updated_at']);
+        if ($posts->isNotEmpty()) {
+            $urls[] = ['loc' => $base.'/blog', 'lastmod' => $posts->max('updated_at')];
+            foreach ($posts as $p) {
+                $urls[] = ['loc' => $base.'/blog/'.rawurlencode($p->handle), 'lastmod' => $p->updated_at];
+            }
+        }
+
+        // Every page again under each extra published language ("/fr/products/…")
+        $originals = $urls;
+        foreach (array_slice(Localization::enabled($store), 1) as $code) {
+            foreach ($originals as $u) {
+                $path = substr($u['loc'], strlen($base));
+                $urls[] = ['loc' => $base.'/'.$code.($path === '/' ? '' : $path), 'lastmod' => $u['lastmod']];
+            }
+        }
+
+        // …and under each market and its languages ("/es-mx/products/…"), minus products a market doesn't sell
+        foreach (MarketContext::live($store) as $m) {
+            $excluded = MarketProductExclusion::where('market_id', $m->id)->pluck('product_id')->flip();
+            foreach ($m->languages() as $code) {
+                foreach ($originals as $u) {
+                    if (isset($u['product_id']) && $excluded->has($u['product_id'])) {
+                        continue;
+                    }
+                    $path = substr($u['loc'], strlen($base));
+                    $urls[] = ['loc' => $base.$m->prefix($code).($path === '/' ? '' : $path), 'lastmod' => $u['lastmod']];
+                }
+            }
+        }
+
+        return array_map(fn ($u) => ['loc' => $u['loc'], 'lastmod' => $u['lastmod']], $urls);
     }
 }

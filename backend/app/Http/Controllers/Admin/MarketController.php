@@ -157,7 +157,7 @@ class MarketController extends Controller
                     $price = isset($p['price']) && $p['price'] !== '' ? Money::toMinor($p['price']) : null;
                     $compare = isset($p['compare_at_price']) && $p['compare_at_price'] !== '' ? Money::toMinor($p['compare_at_price']) : null;
                     if ($price === null && $compare === null) {
-                        MarketPrice::where('market_id', $market->id)->where('variant_id', $p['variant_id'])->delete();
+                        MarketPrice::where('market_id', $market->id)->where('variant_id', $p['variant_id'])->get()->each->delete();   // one by one: price history
                     } else {
                         MarketPrice::updateOrCreate(['market_id' => $market->id, 'variant_id' => $p['variant_id']], ['price' => $price, 'compare_at_price' => $compare]);
                     }

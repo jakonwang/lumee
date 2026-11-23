@@ -49,3 +49,6 @@ Schedule::command('lumee:theme-schedules --prepare')->dailyAt('05:20')->withoutO
 
 // Weekly look at each market's numbers: findings and AI design suggestions (Mondays)
 Schedule::command('lumee:design-insights')->weeklyOn(1, '06:00')->withoutOverlapping();
+
+// Old assistant questions and price history
+Schedule::command('lumee:housekeeping')->dailyAt('03:50')->withoutOverlapping();

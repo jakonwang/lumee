@@ -267,6 +267,8 @@ Route::prefix('admin')->group(function () {
                 Route::post('theme/experiments', [ThemeController::class, 'startExperiment']);   // design A/B test (draft vs live)
                 $dp = \App\Http\Controllers\Admin\DesignPerformanceController::class;   // 装修效果
                 Route::get('design/performance', [$dp, 'index']);
+                Route::get('assistant', [\App\Http\Controllers\Admin\AssistantController::class, 'show']);   // AI 导购
+                Route::put('assistant', [\App\Http\Controllers\Admin\AssistantController::class, 'update']);
                 Route::post('design/insights/refresh', [$dp, 'refresh'])->middleware('throttle:5,1');
                 Route::post('design/experiments/{experiment}/finish', [$dp, 'finish'])->whereNumber('experiment');
                 Route::post('theme/versions/{version}/restore', [ThemeController::class, 'restoreVersion'])->whereNumber('version');

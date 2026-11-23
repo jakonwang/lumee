@@ -199,7 +199,7 @@ class ThemeContext
     public function fontsUrl(): string
     {
         // Google Fonts rejects the whole request if a family lacks a requested weight
-        $weights = ['Marcellus' => '400', 'Lato' => '400;700', 'Noto Nastaliq Urdu' => '400;700'];
+        $weights = ['Marcellus' => '400', 'Bebas Neue' => '400', 'Lato' => '400;700', 'Noto Nastaliq Urdu' => '400;700'];
         $families = array_values(array_unique(array_filter([$this->setting('typography.heading_font'), $this->setting('typography.body_font'), self::scriptFont()])));
         $q = implode('&', array_map(
             fn ($f) => 'family='.str_replace(' ', '+', $f).':wght@'.($weights[$f] ?? '400;500;600;700'),
