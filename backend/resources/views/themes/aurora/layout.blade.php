@@ -20,9 +20,11 @@
     @if ($theme->preview || $__env->hasSection('noindex'))<meta name="robots" content="noindex">@endif
     <link rel="canonical" href="{{ $seoCanonical }}">
     {{-- Same page in every published language and every market (search engines show shoppers the right one) --}}
+    @unless ($__env->hasSection('single_site'))   {{-- pages that exist on one site only (SEO landing pages) --}}
     @foreach ($seoAlternates as $alt)
         <link rel="alternate" hreflang="{{ $alt['hreflang'] }}" href="{{ $alt['href'].$seoQuery }}">
     @endforeach
+    @endunless
     <meta property="og:site_name" content="{{ $store->name }}">
     <meta property="og:type" content="@yield('og_type', 'website')">
     <meta property="og:url" content="{{ $seoCanonical }}">

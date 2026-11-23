@@ -23,11 +23,14 @@ $storefront = function () {
         Route::get('/collections', [CollectionController::class, 'index'])->name('store.collections');
         Route::get('/collections/{handle}', [CollectionController::class, 'show'])->name('store.collection');
         Route::get('/pages/{handle}', [ContentController::class, 'page'])->name('store.page');
+        Route::get('/s/{slug}', [\App\Http\Controllers\Storefront\SeoPageController::class, 'show'])->where('slug', '[A-Za-z0-9\-]+');   // SEO landing pages
         Route::get('/search', [ContentController::class, 'search'])->name('store.search');
         Route::get('/blog', [\App\Http\Controllers\Storefront\BlogController::class, 'index'])->name('store.blog');
         Route::get('/blog/feed.xml', [\App\Http\Controllers\Storefront\BlogController::class, 'feed']);
         Route::get('/blog/{handle}', [\App\Http\Controllers\Storefront\BlogController::class, 'show'])->name('store.article');
         Route::get('/feeds/google.xml', [\App\Http\Controllers\Storefront\FeedController::class, 'google'])->middleware('throttle:60,1');
+        Route::get('/feeds/meta.xml', [\App\Http\Controllers\Storefront\FeedController::class, 'meta'])->middleware('throttle:60,1');
+        Route::get('/feeds/tiktok.csv', [\App\Http\Controllers\Storefront\FeedController::class, 'tiktok'])->middleware('throttle:60,1');
 
         Route::get('/cart', [CartController::class, 'show'])->name('store.cart');
         Route::post('/currency', [ContentController::class, 'currency']);

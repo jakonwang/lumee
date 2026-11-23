@@ -192,6 +192,11 @@ class ContentController extends Controller
             }
         }
 
+        // SEO landing pages: each lives on one site (its market and language) only
+        foreach (\App\Models\SeoPage::published()->get() as $sp) {
+            $urls[] = ['loc' => \App\Marketing\SeoPages::url($store, $sp), 'lastmod' => $sp->updated_at];
+        }
+
         return array_map(fn ($u) => ['loc' => $u['loc'], 'lastmod' => $u['lastmod']], $urls);
     }
 }

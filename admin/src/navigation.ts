@@ -74,6 +74,8 @@ export const sections: NavSection[] = [
       { name: 'flows', label: t('自动化'), keywords: '欢迎邮件 召回 automation flows welcome winback' },
       { name: 'marketing', label: t('折扣'), also: ['promotions'], keywords: '折扣码 优惠券 自动折扣 满减 discount codes coupons automatic promotions' },
       { name: 'affiliates', label: t('联盟营销'), keywords: '推广员 佣金 affiliates commission' },
+      { name: 'creators', label: t('达人合作'), keywords: '网红 博主 KOL 带货 influencers creators instagram tiktok youtube' },
+      { name: 'seo-pages', label: t('SEO 落地页'), keywords: '搜索引擎 关键词 谷歌 自然流量 seo landing pages google organic' },
       { name: 'loyalty', label: t('积分') },
       { name: 'leads', label: t('获客雷达'), keywords: 'B2B 客户开发 线索 leads prospecting b2b' },
     ],

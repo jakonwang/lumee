@@ -96,11 +96,21 @@ class TrackingController extends Controller
                     'test_code' => $s['test_code'], 'status' => \App\Marketing\ServerEvents::status($store),
                 ];
             })(),
-            'feeds' => collect($languages)->map(fn ($code, $i) => [
-                'locale' => $code,
-                'name' => config("lumee.languages.$code", $code),
-                'url' => $base.($i === 0 ? '' : '/'.$code).'/feeds/google.xml',
-            ])->values(),
+            // One row per site: each language of the default site, then each market and its languages
+            'feeds' => collect($languages)->map(fn ($code, $i) => self::feedRow($base.($i === 0 ? '' : '/'.$code), $code, config("lumee.languages.$code", $code), null, $store->baseCurrency()))
+                ->concat(\App\Markets\MarketContext::live($store)->flatMap(fn ($m) => collect($m->languages())->map(fn ($code) => self::feedRow(
+                    $base.$m->prefix($code), $code, $m->name.' · '.config("lumee.languages.$code", $code), $m->id, $m->currency))))
+                ->values(),
+        ];
+    }
+
+    /** Feed links of one site: Google Merchant Center, Meta catalog, TikTok catalog. */
+    private static function feedRow(string $site, string $locale, string $name, ?int $marketId, string $currency): array
+    {
+        return [
+            'locale' => $locale, 'name' => $name, 'market_id' => $marketId, 'currency' => $currency,
+            'url' => $site.'/feeds/google.xml',
+            'urls' => ['google' => $site.'/feeds/google.xml', 'meta' => $site.'/feeds/meta.xml', 'tiktok' => $site.'/feeds/tiktok.csv'],
         ];
     }
 }

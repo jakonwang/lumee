@@ -7,7 +7,8 @@ import { t } from '@/i18n'
 import SettingsNav from '@/components/SettingsNav.vue'
 
 interface Settings { ga4: string | null; meta: string | null; tiktok: string | null; consent: boolean }
-interface Feed { locale: string; name: string; url: string }
+interface Feed { locale: string; name: string; url: string; market_id: number | null; currency: string; urls: Record<'google' | 'meta' | 'tiktok', string> }
+const PLATFORMS = [['google', 'Google'], ['meta', 'Meta'], ['tiktok', 'TikTok']] as const
 
 const message = useMessage()
 const loading = ref(true)
@@ -152,12 +153,16 @@ onMounted(load)
         </NForm>
       </NCard>
 
-      <NCard :title="t('Google Merchant Center 商品数据源')" size="small">
-        <p class="muted top">{{ t('在 Merchant Center 中添加「定期抓取」数据源并填写下面的网址，Google 购物广告和免费商品展示就会自动同步你的商品、价格和库存。每个款式是一条商品。') }}</p>
-        <div v-for="f in feeds" :key="f.locale" class="feed">
-          <span class="lang">{{ f.name }}</span>
-          <code>{{ f.url }}</code>
-          <button type="button" class="copy" :aria-label="t('复制')" @click="copy(f.url)"><NIcon size="14"><CopyOutline /></NIcon></button>
+      <NCard :title="t('广告商品目录')" size="small">
+        <p class="muted top">{{ t('把下面的网址填进 Google Merchant Center（定期抓取）、Meta 商务管理工具（商品目录 › 数据源 › 定期更新）和 TikTok 商品目录（数据源 › 定时更新），广告平台就会自动同步商品、价格和库存。每个国家站点用自己的网址：只包含在那个市场销售的商品，价格是当地货币。') }}</p>
+        <p class="muted top">{{ t('每个商品带三个自定义标签，可以在广告里按标签分组出价：custom_label_0 = 在这个市场的适合度（fit-high / fit-medium / fit-low），custom_label_1 = 测款结果（hot 等），custom_label_2 = 毛利（margin-high ≥ 50% / margin-mid ≥ 30% / margin-low）。') }}</p>
+        <div v-for="f in feeds" :key="f.url" class="feed-site">
+          <div class="lang">{{ f.name }} <span class="muted">· {{ f.currency }}</span></div>
+          <div v-for="[key, label] in PLATFORMS" :key="key" class="feed">
+            <span class="plat">{{ label }}</span>
+            <code>{{ f.urls[key] }}</code>
+            <button type="button" class="copy" :aria-label="t('复制')" @click="copy(f.urls[key])"><NIcon size="14"><CopyOutline /></NIcon></button>
+          </div>
         </div>
       </NCard>
     </template>
@@ -170,8 +175,10 @@ onMounted(load)
 .center { display: flex; justify-content: center; padding: 48px; }
 .muted { color: var(--ink-muted); font-size: 13px; line-height: 1.6; margin: 8px 0 16px; }
 .muted.top { margin-top: 0; }
-.feed { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
-.feed .lang { min-width: 80px; color: var(--ink-muted); }
+.feed-site { border-top: 1px solid var(--border); padding: 10px 0 4px; }
+.feed-site .lang { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+.feed { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
+.feed .plat { min-width: 56px; color: var(--ink-muted); }
 .feed code { flex: 1; word-break: break-all; }
 .copy { border: 0; background: none; cursor: pointer; color: var(--ink-muted); padding: 4px; }
 .copy:hover { color: var(--brand-600, #0E8A5F); }

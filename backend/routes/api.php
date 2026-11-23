@@ -219,6 +219,20 @@ Route::prefix('admin')->group(function () {
                 Route::get('promotions/{id}', [$promo, 'show'])->whereNumber('id');
                 Route::put('promotions/{id}', [$promo, 'update'])->whereNumber('id');
                 Route::delete('promotions/{id}', [$promo, 'destroy'])->whereNumber('id');
+                $seo = \App\Http\Controllers\Admin\SeoPageController::class;   // SEO landing pages per market + keyword
+                Route::get('seo-pages', [$seo, 'index']);
+                Route::post('seo-pages', [$seo, 'generate'])->middleware('throttle:20,1');
+                Route::post('seo-pages/publish', [$seo, 'publish']);
+                Route::get('seo-pages/{id}', [$seo, 'show'])->whereNumber('id');
+                Route::put('seo-pages/{id}', [$seo, 'update'])->whereNumber('id');
+                Route::delete('seo-pages/{id}', [$seo, 'destroy'])->whereNumber('id');
+                $cr = \App\Http\Controllers\Admin\CreatorController::class;   // creators to collaborate with
+                Route::get('creators', [$cr, 'index']);
+                Route::post('creators/search', [$cr, 'search'])->middleware('throttle:10,1');
+                Route::patch('creators/{id}', [$cr, 'update'])->whereNumber('id');
+                Route::post('creators/{id}/outreach', [$cr, 'outreach'])->whereNumber('id')->middleware('throttle:30,1');
+                Route::post('creators/{id}/affiliate', [$cr, 'affiliate'])->whereNumber('id');
+                Route::delete('creators/{id}', [$cr, 'destroy'])->whereNumber('id');
             });
             Route::middleware('perm:marketing')->get('settings/tracking', [\App\Http\Controllers\Admin\TrackingController::class, 'show']);
             Route::middleware('perm:marketing')->put('settings/tracking', [\App\Http\Controllers\Admin\TrackingController::class, 'update']);

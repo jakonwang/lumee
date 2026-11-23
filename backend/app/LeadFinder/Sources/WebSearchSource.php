@@ -27,12 +27,21 @@ class WebSearchSource
 {
     public const CHANNELS = ['web', 'facebook', 'instagram', 'linkedin', 'tiktok'];
 
+    /** Where creators (达人) are found: App\Marketing\Creators. */
+    public const CREATOR_CHANNELS = ['instagram', 'tiktok', 'youtube'];
+
     /** At most this many Google searches per lead search (each is billed by SerpApi). */
     public const MAX_QUERIES = 40;
 
     private const SITE = [
         'facebook' => 'site:facebook.com', 'instagram' => 'site:instagram.com', 'linkedin' => 'site:linkedin.com/company', 'tiktok' => 'site:tiktok.com/@',
+        'youtube' => 'site:youtube.com',
     ];
+
+    public static function siteFilter(string $channel): string
+    {
+        return self::SITE[$channel] ?? '';
+    }
 
     /** Web results that are not a company's own site. */
     private const NOT_A_COMPANY = '/(^|\.)(amazon|ebay|aliexpress|alibaba|temu|shein|wish|etsy|walmart|mercadolibre|mercadolivre|rakuten|shopee|lazada|tokopedia|flipkart|'
@@ -127,6 +136,11 @@ class WebSearchSource
                 ? ['https://www.instagram.com/'.$first.'/', $first] : null,
             'tiktok' => str_starts_with($first, '@') && strlen($first) > 2 ? ['https://www.tiktok.com/'.$first, ltrim($first, '@')] : null,
             'linkedin' => $first === 'company' && ! empty($seg[1]) ? ['https://www.linkedin.com/company/'.$seg[1].'/', $seg[1]] : null,
+            'youtube' => match (true) {
+                str_starts_with($first, '@') && strlen($first) > 2 => ['https://www.youtube.com/'.$first, ltrim($first, '@')],
+                in_array($first, ['c', 'channel', 'user'], true) && ! empty($seg[1]) => ['https://www.youtube.com/'.$first.'/'.$seg[1], $seg[1]],
+                default => null,   // a video, a playlist, search results…
+            },
             'facebook' => match (true) {
                 $first === 'p' && ! empty($seg[1]) => ['https://www.facebook.com/p/'.$seg[1].'/', $seg[1]],   // new-style page URL
                 in_array($first, ['', 'p', 'people', 'profile.php', 'groups', 'events', 'watch', 'marketplace', 'photo', 'photo.php', 'story.php', 'permalink.php',
@@ -141,7 +155,7 @@ class WebSearchSource
     /** "Acme Cases (@acme.cases) • Instagram photos and videos" → "Acme Cases" */
     public static function cleanTitle(string $title, ?string $handle): string
     {
-        $t = preg_replace('/\s*[|•·\-–—]\s*(Facebook|Instagram|LinkedIn|TikTok)\b.*$/iu', '', $title);
+        $t = preg_replace('/\s*[|•·\-–—]\s*(Facebook|Instagram|LinkedIn|TikTok|YouTube)\b.*$/iu', '', $title);
         $t = preg_replace('/\s*\((@[^)]+)\)\s*/u', ' ', $t);
         $t = preg_replace('/\s*(Instagram photos and videos|on TikTok|TikTok|- Home)\s*$/iu', '', $t);
         $t = trim(preg_replace('/\s{2,}/u', ' ', $t), " \t|-–—·•");
@@ -180,7 +194,7 @@ class WebSearchSource
                 }
             }
         }
-        if (preg_match('/([\d.,]+)\s*([KkMm]|mil|tys\.?)?\s*(followers|seguidores|abonnés|follower|likes|me gusta|curtidas)/u', $text, $m)) {
+        if (preg_match('/([\d.,]+)\s*([KkMm]|mil|tys\.?)?\s*(followers|seguidores|abonnés|follower|subscribers|suscriptores|inscritos|Abonnenten|likes|me gusta|curtidas)/u', $text, $m)) {
             $n = (float) str_replace(',', '.', preg_replace('/[.,](?=\d{3}\b)/', '', $m[1]));
             $mult = match (strtolower($m[2] ?? '')) { 'k', 'mil' => 1000, 'm' => 1000000, default => 1 };
             $out['followers'] = (int) round($n * $mult);
@@ -195,7 +209,7 @@ class WebSearchSource
             'source' => 'web',
             'source_id' => Str::limit($id, 180, ''),
             'name' => $name,
-            'category' => ['web' => null, 'facebook' => 'Facebook', 'instagram' => 'Instagram', 'linkedin' => 'LinkedIn', 'tiktok' => 'TikTok'][$channel],
+            'category' => ['web' => null, 'facebook' => 'Facebook', 'instagram' => 'Instagram', 'linkedin' => 'LinkedIn', 'tiktok' => 'TikTok', 'youtube' => 'YouTube'][$channel],
             'country' => $country,
             'city' => $city,
             'address' => null, 'lat' => null, 'lng' => null,
