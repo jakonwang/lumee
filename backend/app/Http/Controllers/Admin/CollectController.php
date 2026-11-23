@@ -154,7 +154,9 @@ class CollectController extends Controller
         $data = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:200'],
             'ids.*' => ['integer'],
-            'action' => ['required', Rule::in(['ai', 'reprice', 'reject', 'restore', 'delete', 'publish'])],
+            'action' => ['required', Rule::in(['ai', 'fit', 'reprice', 'reject', 'restore', 'delete', 'publish'])],
+            'market_mode' => ['nullable', Rule::in(['all', 'chosen', 'fit'])],
+            'min_fit' => ['nullable', 'integer', 'min:0', 'max:100'],
             'rule_id' => ['nullable', 'integer'],
             'status' => ['nullable', Rule::in(['draft', 'active'])],
             'collection_ids' => ['array'],
@@ -179,6 +181,25 @@ class CollectController extends Controller
                 foreach ($items->where('status', 'ready') as $item) {
                     try {
                         $pipeline->rewrite($store, $item);
+                        $done++;
+                    } catch (Throwable $e) {
+                        $errors[] = ['id' => $item->id, 'message' => Str::limit($e->getMessage(), 200)];
+                    }
+                }
+                break;
+            case 'fit':   // AI: which markets each item suits (rules and trends are refreshed too)
+                if (! \App\Markets\MarketFit::aiReady($store)) {
+                    throw ValidationException::withMessages(['action' => __('还没有配置 Claude API Key（在「获客雷达 › 设置」里填写）')]);
+                }
+                if ($items->count() > 10) {
+                    throw ValidationException::withMessages(['ids' => __('AI 判断市场一次最多 10 个商品')]);
+                }
+                if (! Market::exists()) {
+                    throw ValidationException::withMessages(['action' => __('还没有设置市场（在「设置 › 市场」里添加）')]);
+                }
+                foreach ($items->where('status', 'ready') as $item) {
+                    try {
+                        app(\App\Markets\MarketFit::class)->scoreItem($store, $item, true);
                         $done++;
                     } catch (Throwable $e) {
                         $errors[] = ['id' => $item->id, 'message' => Str::limit($e->getMessage(), 200)];
@@ -216,7 +237,9 @@ class CollectController extends Controller
                     PublishCollected::dispatch($store->id, $ready->pluck('id')->all(), [
                         'status' => $data['status'] ?? 'draft',
                         'collection_ids' => $ids,
-                        'market_ids' => isset($data['market_ids']) ? Market::whereIn('id', $data['market_ids'])->pluck('id')->all() : null,
+                        'market_ids' => ($data['market_mode'] ?? 'chosen') === 'chosen' && isset($data['market_ids']) ? Market::whereIn('id', $data['market_ids'])->pluck('id')->all() : null,
+                        'market_mode' => $data['market_mode'] ?? null,
+                        'min_fit' => $data['min_fit'] ?? \App\Markets\MarketFit::DEFAULT_MIN,
                         'inventory' => $data['inventory'] ?? 0,
                     ]);
                 }
@@ -320,6 +343,9 @@ class CollectController extends Controller
             'rule' => $d['pricing']['rule'] ?? null,
             'notes' => $i->checks['notes'] ?? [], 'duplicate' => $i->checks['duplicate'] ?? null, 'ai' => $i->checks['ai'] ?? null,
             'product_id' => $i->product_id, 'created_at' => $i->created_at,
+            'fits' => collect((array) ($i->checks['markets'] ?? []))->map(fn ($f, $id) => ['market_id' => (int) $id, 'score' => $f['score'] ?? null,
+                'hard' => (bool) ($f['hard'] ?? false), 'reasons' => $f['reasons'] ?? [], 'tags' => $f['tags'] ?? []])->values(),
+            'fit_ai' => $i->checks['markets_ai_at'] ?? null,
         ] + ($full ? ['data' => [...$d, 'variants' => array_map(fn ($v) => [...$v,
             'price' => $v['price'] === null ? null : Money::format($v['price']),
             'compare_at_price' => $v['compare_at_price'] === null ? null : Money::format($v['compare_at_price']),

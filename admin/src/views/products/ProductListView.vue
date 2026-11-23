@@ -106,6 +106,25 @@ async function exportCsv() {
 const checked = ref<number[]>([])
 const copyOpen = ref(false)
 
+// Selection → which markets they suit (AI: at most 10 at a time)
+const fitting = ref(false)
+async function judgeMarkets() {
+  if (checked.value.length > 10) {
+    message.warning(t('AI 判断市场一次最多 10 个商品'))
+    return
+  }
+  fitting.value = true
+  try {
+    const r = (await http.post('/products-market-fit', { ids: checked.value, ai: true })).data
+    if (r.errors?.length) message.warning(t('{0} 个完成，{1} 个失败：{2}', [r.done, r.errors.length, r.errors[0].message]))
+    else message.success(t('已判断 {0} 个商品适合的市场，在商品页「市场与价格」里查看', [r.done]))
+  } catch (e) {
+    message.error(errorMessage(e))
+  } finally {
+    fitting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -129,6 +148,7 @@ onMounted(load)
         <div v-if="checked.length" class="bulk">
           <span>{{ t('已选 {0} 件', [checked.length]) }}</span>
           <NButton size="small" @click="copyOpen = true">{{ t('复制到其他店铺') }}</NButton>
+          <NButton size="small" :loading="fitting" @click="judgeMarkets">{{ t('AI 判断市场') }}</NButton>
           <NButton size="small" quaternary @click="checked = []">{{ t('取消选择') }}</NButton>
         </div>
         <NInput v-else v-model:value="q" :placeholder="t('搜索商品名称')" clearable size="small" style="max-width: 260px" />

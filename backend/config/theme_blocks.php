@@ -28,7 +28,7 @@ $tabs = [];
 foreach ([1, 2, 3] as $n) {
     $tabs += [
         "tab{$n}_label" => ['type' => 'text', 'label' => "第 {$n} 个标签 · 名称", 'max' => 30, 'default' => [1 => 'New in', 2 => 'Best sellers', 3 => 'On sale'][$n]],
-        "tab{$n}_source" => ['type' => 'select', 'label' => "第 {$n} 个标签 · 商品", 'options' => ['newest' => '最新上架', 'bestsellers' => '本市场热卖', 'sale' => '正在打折', 'collection' => '某个分类'], 'default' => [1 => 'newest', 2 => 'bestsellers', 3 => 'sale'][$n]],
+        "tab{$n}_source" => ['type' => 'select', 'label' => "第 {$n} 个标签 · 商品", 'options' => ['newest' => '最新上架', 'for_market' => '适合本市场', 'bestsellers' => '本市场热卖', 'sale' => '正在打折', 'collection' => '某个分类'], 'default' => [1 => 'newest', 2 => 'bestsellers', 3 => 'sale'][$n]],
         "tab{$n}_collection" => ['type' => 'collection', 'label' => "第 {$n} 个标签 · 分类（选「某个分类」时）"],
     ];
 }

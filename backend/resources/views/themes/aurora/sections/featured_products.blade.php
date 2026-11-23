@@ -1,6 +1,6 @@
-{{-- Products come from the chosen collection, else the newest products (App\Themes\SectionData) --}}
+{{-- Products come from the chosen collection, else what suits this market best (newest first on the default site) — App\Themes\SectionData --}}
 @php
-    $items = app(\App\Themes\SectionData::class)->products($s['collection'] ? 'collection' : 'newest', $s['collection'], (int) $s['limit']);
+    $items = app(\App\Themes\SectionData::class)->products($s['collection'] ? 'collection' : 'for_market', $s['collection'], (int) $s['limit']);
 @endphp
 @php
     $source = $s['collection'] ? \App\Models\Collection::published()->find($s['collection']) : null;

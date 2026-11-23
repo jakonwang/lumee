@@ -2,6 +2,7 @@
 
 namespace App\Collect;
 
+use App\Markets\MarketFit;
 use App\Models\CollectedItem;
 use App\Models\Market;
 use App\Models\MarketProductExclusion;
@@ -21,7 +22,8 @@ use Throwable;
  * Review pool → catalog. Creates the product (images downloaded to our storage, never hot-linked),
  * records its cost and source, and limits it to the chosen markets.
  *
- * $options: status (draft|active), collection_ids[], market_ids (null = every market), inventory (default stock)
+ * $options: status (draft|active), collection_ids[], market_ids (null = every market), inventory (default stock),
+ *           market_mode "fit" = sell only in markets where it fits (MarketFit score ≥ min_fit; unscored markets stay on)
  */
 class Publisher
 {
@@ -87,15 +89,25 @@ class Publisher
 
         ProductSource::create(['product_id' => $product->id, 'url' => $item->url, 'url_hash' => $item->url_hash, 'platform' => $item->platform, 'currency' => $d['currency'] ?? null]);
 
-        // Markets: sold only where chosen
-        if (is_array($options['market_ids'] ?? null)) {
-            foreach (Market::whereNotIn('id', $options['market_ids'])->pluck('id') as $marketId) {
+        // Markets: sold only where chosen, or where it fits
+        $store = app(\App\Tenancy\CurrentStore::class)->getOrFail();
+        $fit = app(MarketFit::class);
+        $marketIds = $options['market_ids'] ?? null;
+        if (($options['market_mode'] ?? null) === 'fit') {
+            $markets = MarketFit::markets($store);
+            $fits = $fit->evaluate($store, MarketFit::itemFacts($d), $markets, (array) ($item->checks['markets_ai'] ?? []));
+            $marketIds = MarketFit::marketsToSell($fits, $markets, (int) ($options['min_fit'] ?? MarketFit::DEFAULT_MIN));
+        }
+        if (is_array($marketIds)) {
+            foreach (Market::whereNotIn('id', $marketIds)->pluck('id') as $marketId) {
                 MarketProductExclusion::firstOrCreate(['market_id' => $marketId, 'product_id' => $product->id]);
             }
         }
 
+        // The product keeps the item's market judgement (no second AI call)
+        rescue(fn () => $fit->scoreProduct($store, $product->fresh('variants'), false, (array) ($item->checks['markets_ai'] ?? []) ?: null));
+
         // Content score: below the brand kit's minimum, an "active" product is kept as a draft
-        $store = app(\App\Tenancy\CurrentStore::class)->getOrFail();
         $score = app(\App\Content\ContentScorer::class)->rescore($store, $product->fresh(['images', 'variants']));
         $min = \App\Content\BrandKit::for($store)->all()['min_score'];
         $notes = $failed ? ["{$failed} 张图片下载失败"] : [];

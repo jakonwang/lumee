@@ -119,6 +119,52 @@ class MarketController extends Controller
     }
 
     /** Availability and prices of one product in every market. */
+    /** Re-score which markets a product suits; ai=true asks Claude again (slow, uses the store's key). */
+    public function productFit(Request $request, Product $product, \App\Markets\MarketFit $fit): JsonResponse
+    {
+        $ai = $request->boolean('ai');
+        $store = app(CurrentStore::class)->getOrFail();
+        if ($ai && ! \App\Markets\MarketFit::aiReady($store)) {
+            throw ValidationException::withMessages(['ai' => __('还没有配置 Claude API Key（在「获客雷达 › 设置」里填写）')]);
+        }
+        try {
+            $fit->scoreProduct($store, $product, $ai);
+        } catch (\RuntimeException $e) {
+            throw ValidationException::withMessages(['ai' => $e->getMessage()]);
+        }
+
+        return response()->json(['data' => $this->productPayload($product)]);
+    }
+
+    /** Several products at once (product list bulk action). AI: at most 10 at a time. */
+    public function productsFit(Request $request, \App\Markets\MarketFit $fit): JsonResponse
+    {
+        $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:200'], 'ids.*' => ['integer'], 'ai' => ['boolean']]);
+        $store = app(CurrentStore::class)->getOrFail();
+        $ai = (bool) ($data['ai'] ?? false);
+        if ($ai && ! \App\Markets\MarketFit::aiReady($store)) {
+            throw ValidationException::withMessages(['ai' => __('还没有配置 Claude API Key（在「获客雷达 › 设置」里填写）')]);
+        }
+        if ($ai && count($data['ids']) > 10) {
+            throw ValidationException::withMessages(['ids' => __('AI 判断市场一次最多 10 个商品')]);
+        }
+        if (! Market::exists()) {
+            throw ValidationException::withMessages(['ids' => __('还没有设置市场（在「设置 › 市场」里添加）')]);
+        }
+        $done = 0;
+        $errors = [];
+        foreach (Product::with('variants:id,product_id,price')->whereIn('id', $data['ids'])->get() as $p) {   // this store's only
+            try {
+                $fit->scoreProduct($store, $p, $ai);
+                $done++;
+            } catch (\Throwable $e) {
+                $errors[] = ['id' => $p->id, 'message' => \Illuminate\Support\Str::limit($e->getMessage(), 200)];
+            }
+        }
+
+        return response()->json(['done' => $done, 'errors' => $errors]);
+    }
+
     public function product(Product $product): JsonResponse
     {
         return response()->json(['data' => $this->productPayload($product)]);
@@ -249,7 +295,9 @@ class MarketController extends Controller
         $variants = $product->variants()->get(['id', 'title', 'sku', 'price', 'compare_at_price']);
         $ctx = app(MarketContext::class);
 
-        return Market::orderBy('position')->orderBy('id')->get()->map(function (Market $m) use ($store, $variants, $product, $ctx) {
+        $fits = \App\Markets\MarketFit::forProduct($product->id);
+
+        return Market::orderBy('position')->orderBy('id')->get()->map(function (Market $m) use ($store, $variants, $product, $ctx, $fits) {
             $m->setRelation('store', $store);
             $rate = $m->rate($store);
             $fixed = MarketPrice::where('market_id', $m->id)->whereIn('variant_id', $variants->pluck('id'))->get()->keyBy('variant_id');
@@ -258,6 +306,7 @@ class MarketController extends Controller
             return [
                 'id' => $m->id, 'name' => $m->name, 'currency' => $m->currency, 'enabled' => $m->enabled, 'has_rate' => $rate !== null,
                 'sold' => ! MarketProductExclusion::where('market_id', $m->id)->where('product_id', $product->id)->exists(),
+                'fit' => $fits[$m->id] ?? null,
                 'variants' => $variants->map(function ($v) use ($m, $rate, $fixed, $ctx, $fmt) {
                     // What the shopper pays when no fixed price is set (store price converted for this market)
                     [$auto, $autoCompare] = $rate === null ? [null, null] : $ctx->within($m, fn () => [

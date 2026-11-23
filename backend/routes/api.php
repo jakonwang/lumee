@@ -161,6 +161,8 @@ Route::prefix('admin')->group(function () {
                 Route::post('collect/extension-key', [$cl, 'extensionKey'])->middleware('throttle:10,1');
                 Route::get('products/{product}/markets', [\App\Http\Controllers\Admin\MarketController::class, 'product']);
                 Route::put('products/{product}/markets', [\App\Http\Controllers\Admin\MarketController::class, 'updateProduct']);
+                Route::post('products/{product}/market-fit', [\App\Http\Controllers\Admin\MarketController::class, 'productFit'])->middleware('throttle:30,1');
+                Route::post('products-market-fit', [\App\Http\Controllers\Admin\MarketController::class, 'productsFit'])->middleware('throttle:20,1');
                 $pl = \App\Http\Controllers\Admin\PriceListController::class;
                 Route::get('price-lists', [$pl, 'index']);
                 Route::post('price-lists', [$pl, 'store']);

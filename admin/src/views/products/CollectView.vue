@@ -12,6 +12,7 @@ import {
 } from 'naive-ui'
 import { http, errorMessage } from '@/api/http'
 import { t } from '@/i18n'
+import MarketFitChips, { type Fit } from '@/components/MarketFitChips.vue'
 
 type Status = 'ready' | 'pending' | 'failed' | 'published' | 'rejected'
 interface Note { type: string; message: string }
@@ -19,6 +20,7 @@ interface Row {
   id: number; url: string; platform: string | null; status: Status; error: string | null; title: string | null; image: string | null
   currency: string | null; variants_count: number; price_min: string | null; price_max: string | null; cost_min: string | null; rule: string | null
   notes: Note[]; duplicate: { product_id: number; title: string; reason: string } | null; ai: string | null; product_id: number | null
+  fits: Fit[]; fit_ai: string | null
 }
 interface Variant { options: Record<string, string>; sku: string | null; cost: string; price: string | null; compare_at_price: string | null; inventory: number | null; image: string | null }
 interface Detail extends Row { data: { title: string; description: string; product_type?: string; tags?: string[]; images: string[]; currency: string; variants: Variant[] }; original: { title?: string } | null }
@@ -105,7 +107,7 @@ async function bulk(action: string, extra: Record<string, unknown> = {}) {
     const r = (await http.post('/collect/items/bulk', { ids: selected.value, action, ...extra })).data
     if (r.errors?.length) message.warning(t('{0} 个完成，{1} 个失败：{2}', [r.done, r.errors.length, r.errors[0].message]))
     else message.success(t('已处理 {0} 个', [r.done]))
-    if (action !== 'ai' && action !== 'reprice') selected.value = []
+    if (!['ai', 'fit', 'reprice'].includes(action)) selected.value = []
     await load(true)
     return r
   } catch (e) {
@@ -124,10 +126,19 @@ const repriceRule = ref<number | null>(null)
 
 // Publish
 const showPublish = ref(false)
-const pub = reactive({ status: 'draft' as 'draft' | 'active', collection_ids: [] as number[], allMarkets: true, market_ids: [] as number[], inventory: 0 })
+const pub = reactive({ status: 'draft' as 'draft' | 'active', collection_ids: [] as number[], marketMode: 'fit' as 'all' | 'fit' | 'chosen', minFit: 50, market_ids: [] as number[], inventory: 0 })
+// With "where it fits": which markets each selected item would go to (unscored markets stay on)
+const fitPreview = computed(() => ctx.value.markets.map((m) => {
+  const items = rows.value.filter((r) => selected.value.includes(r.id))
+  const off = items.filter((r) => { const f = r.fits?.find((x) => x.market_id === m.id); return f && f.score !== null && f.score < pub.minFit }).length
+  return { name: m.name, on: items.length - off }
+}))
 async function publish() {
   publishing.value = true
-  const r = await bulk('publish', { status: pub.status, collection_ids: pub.collection_ids, market_ids: pub.allMarkets ? null : pub.market_ids, inventory: pub.inventory })
+  const r = await bulk('publish', {
+    status: pub.status, collection_ids: pub.collection_ids, inventory: pub.inventory,
+    market_mode: pub.marketMode, min_fit: pub.minFit, market_ids: pub.marketMode === 'chosen' ? pub.market_ids : null,
+  })
   showPublish.value = false
   if (r?.done) message.info(t('正在后台上架，下载图片需要一点时间'))
   window.setTimeout(() => { publishing.value = false }, 20000)
@@ -263,6 +274,12 @@ async function copy(text: string) {
             </template>
             {{ t('在「获客雷达 › 设置」填写 Claude API Key 后可用') }}
           </NTooltip>
+          <NTooltip v-if="ctx.markets.length">
+            <template #trigger>
+              <NButton size="small" secondary :loading="working" :disabled="!ctx.ai_ready" @click="bulk('fit')">{{ t('AI 判断市场') }}</NButton>
+            </template>
+            {{ ctx.ai_ready ? t('AI 按每个市场的需求、季节、文化和价格打分，一次最多 10 个') : t('在「获客雷达 › 设置」填写 Claude API Key 后可用') }}
+          </NTooltip>
           <NSelect v-model:value="repriceRule" size="small" clearable :placeholder="t('按匹配的规则')" :options="ctx.rules.map((r) => ({ label: r.name, value: r.id }))" style="width: 150px" />
           <NButton size="small" secondary :disabled="working" @click="bulk('reprice', { rule_id: repriceRule })">{{ t('重新定价') }}</NButton>
           <NButton size="small" quaternary :disabled="working" @click="bulk('reject')">{{ t('忽略') }}</NButton>
@@ -300,6 +317,7 @@ async function copy(text: string) {
                 </NTag>
                 <NTag v-for="(n, i) in r.notes" :key="i" size="small" :type="noteType(n)" :bordered="false">{{ n.message }}</NTag>
               </div>
+              <MarketFitChips v-if="r.fits?.length" :fits="r.fits" :markets="ctx.markets" />
               <RouterLink v-if="r.product_id" :to="{ name: 'product-edit', params: { id: r.product_id } }" class="small">{{ t('查看商品') }}</RouterLink>
             </div>
           </div>
@@ -324,8 +342,21 @@ async function copy(text: string) {
         </NFormItem>
         <NFormItem v-if="ctx.markets.length" :label="t('销售市场')">
           <div class="markets">
-            <NCheckbox v-model:checked="pub.allMarkets">{{ t('所有市场') }}</NCheckbox>
-            <template v-if="!pub.allMarkets">
+            <NRadioGroup v-model:value="pub.marketMode">
+              <NRadio value="fit">{{ t('按适合度自动选择') }}</NRadio>
+              <NRadio value="all">{{ t('所有市场') }}</NRadio>
+              <NRadio value="chosen">{{ t('手动选择') }}</NRadio>
+            </NRadioGroup>
+            <template v-if="pub.marketMode === 'fit'">
+              <div class="min-fit">
+                <span>{{ t('只在适合度不低于') }}</span>
+                <NInputNumber v-model:value="pub.minFit" size="small" :min="0" :max="100" :step="5" style="width: 96px" />
+                <span>{{ t('分的市场销售') }}</span>
+              </div>
+              <span class="muted small">{{ t('还没有评分的市场照常销售；插头不符、当地禁售的商品不会上架到那个市场。默认站点始终销售。') }}</span>
+              <span class="muted small">{{ fitPreview.map((p) => t('{0}：{1} 个', [p.name, p.on])).join(' · ') }}</span>
+            </template>
+            <template v-if="pub.marketMode === 'chosen'">
               <NCheckbox v-for="m in ctx.markets" :key="m.id" :checked="pub.market_ids.includes(m.id)"
                 @update:checked="(v: boolean) => pub.market_ids = v ? [...pub.market_ids, m.id] : pub.market_ids.filter((x) => x !== m.id)">{{ m.name }} · {{ m.currency }}</NCheckbox>
               <span class="muted small">{{ t('默认站点始终销售。') }}</span>
@@ -494,6 +525,7 @@ async function copy(text: string) {
 .notes { display: flex; gap: 6px; flex-wrap: wrap; }
 .pager { display: flex; justify-content: flex-end; padding-top: 12px; }
 .markets { display: grid; gap: 6px; }
+.min-fit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
 .foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; width: 100%; }
 .foot a { margin-right: auto; color: var(--brand-700); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }

@@ -28,11 +28,12 @@ class SectionData
         return $this->memo[$key] ??= $fn();
     }
 
-    /** newest | bestsellers | sale | collection */
+    /** newest | for_market | bestsellers | sale | collection */
     public function products(string $source, ?int $collectionId, int $limit, int $days = 30): Items
     {
         return $this->memo("p|$source|$collectionId|$limit|$days", fn () => match ($source) {
             'bestsellers' => $this->bestsellers($days, $limit),
+            'for_market' => $this->forMarket($limit),
             'sale' => Product::active()->with(self::VARIANTS)
                 ->whereHas('variants', fn ($q) => $q->whereColumn('compare_at_price', '>', 'price'))->latest('id')->take($limit)->get(),
             'collection' => ($c = $collectionId ? Collection::published()->find($collectionId) : null)
@@ -59,8 +60,44 @@ class SectionData
             $products = $ids ? Product::active()->with(self::VARIANTS)->whereIn('id', $ids)->get()
                 ->sortBy(fn ($p) => array_search($p->id, $ids))->values()->take($limit) : collect();
             if ($products->count() < $limit) {
-                $products = $products->concat(Product::active()->with(self::VARIANTS)->whereNotIn('id', $products->pluck('id'))
-                    ->latest('id')->take($limit - $products->count())->get());
+                $products = $products->concat($this->forMarket($limit, $products->pluck('id')->all())->take($limit - $products->count()));
+            }
+
+            return $products->values();
+        });
+    }
+
+    /** Good fits from this score up are shown first; below LOW_FIT they go last. */
+    public const GOOD_FIT = 50;
+
+    public const LOW_FIT = 40;
+
+    /**
+     * What suits the current market (App\Markets\MarketFit): the best-fitting products first, then the
+     * newest ones that aren't known to be poor fits, then the poor fits. Outside a market (or before any
+     * product has been scored) this is simply the newest products.
+     *
+     * @param  int[]  $except
+     */
+    public function forMarket(int $limit, array $except = []): Items
+    {
+        return $this->memo("f|$limit|".implode(',', $except), function () use ($limit, $except) {
+            $newest = fn (array $not, int $n) => $n > 0 ? Product::active()->with(self::VARIANTS)->when($not, fn ($q) => $q->whereNotIn('id', $not))->latest('id')->take($n)->get() : collect();
+            $market = app(MarketContext::class)->market();
+            if (! $market) {
+                return $newest($except, $limit);
+            }
+            $good = \App\Models\ProductMarketFit::where('market_id', $market->id)->where('score', '>=', self::GOOD_FIT)
+                ->when($except, fn ($q) => $q->whereNotIn('product_id', $except))
+                ->orderByDesc('score')->orderByDesc('product_id')->limit($limit * 2)->pluck('product_id')->all();
+            $low = \App\Models\ProductMarketFit::where('market_id', $market->id)->where('score', '<', self::LOW_FIT)
+                ->orderByDesc('score')->limit(500)->pluck('product_id')->all();
+            $products = $good ? Product::active()->with(self::VARIANTS)->whereIn('id', $good)->get()
+                ->sortBy(fn ($p) => array_search($p->id, $good))->values()->take($limit) : collect();
+            $products = $products->concat($newest([...$except, ...$products->pluck('id')->all(), ...$low], $limit - $products->count()));
+            if ($products->count() < $limit && $low) {
+                $products = $products->concat(Product::active()->with(self::VARIANTS)->whereIn('id', array_diff($low, $except))->get()
+                    ->sortBy(fn ($p) => array_search($p->id, $low))->take($limit - $products->count()));
             }
 
             return $products->values();

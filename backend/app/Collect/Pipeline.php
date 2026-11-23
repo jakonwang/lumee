@@ -2,6 +2,7 @@
 
 namespace App\Collect;
 
+use App\Markets\MarketFit;
 use App\Models\CollectedItem;
 use App\Models\Store;
 use Illuminate\Support\Str;
@@ -41,7 +42,7 @@ class Pipeline
             'checks' => ['notes' => $notes, 'duplicate' => $this->duplicates->find($item->url, $data['title'] ?? '')],
         ])->save();
 
-        return $item;
+        return $this->fit($store, $item, false);
     }
 
     public function fail(CollectedItem $item, string $reason): void
@@ -64,7 +65,25 @@ class Pipeline
         }
         $item->forceFill(['data' => Item::normalize($d), 'checks' => [...($item->checks ?? []), 'notes' => $notes, 'ai' => now()->toIso8601String()]])->save();
 
-        return $item;
+        return $this->fit($store, $item, true);
+    }
+
+    /**
+     * Which markets it suits (rules and local trends; with $withAi also Claude's judgement per market).
+     * A failure never loses the collected data: it becomes a note.
+     */
+    public function fit(Store $store, CollectedItem $item, bool $withAi): CollectedItem
+    {
+        try {
+            return app(MarketFit::class)->scoreItem($store, $item, $withAi && MarketFit::aiReady($store));
+        } catch (Throwable $e) {
+            $withAi || report($e);
+            $checks = $item->checks ?? [];
+            $checks['notes'][] = ['type' => 'markets', 'message' => '市场适合度：'.Str::limit($e->getMessage(), 200)];
+            $item->forceFill(['checks' => $checks])->save();
+
+            return $item;
+        }
     }
 
     public function reprice(Store $store, CollectedItem $item, ?\App\Models\PricingRule $rule = null): CollectedItem

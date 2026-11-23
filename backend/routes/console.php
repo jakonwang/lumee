@@ -55,3 +55,6 @@ Schedule::command('lumee:housekeeping')->dailyAt('03:50')->withoutOverlapping();
 
 // Online payments never completed: release their stock
 Schedule::command('lumee:expire-unpaid-orders')->hourlyAt(25)->withoutOverlapping();
+
+// Which markets each product suits: storefront ranking per country (after test-and-learn has run)
+Schedule::command('lumee:market-fit')->dailyAt('04:55')->withoutOverlapping();
