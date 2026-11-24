@@ -111,6 +111,14 @@ $storefront = function () {
     });
 };
 
+// Outreach email unsubscribe links (App\Outreach): always reachable, one-click POST from mail clients
+Route::middleware(['store.front', 'store.required'])->prefix('outreach')->group(function () {
+    $ou = \App\Http\Controllers\Storefront\OutreachUnsubscribeController::class;
+    Route::get('unsubscribe/{token}', [$ou, 'show'])->where('token', '[A-Za-z0-9]{40}');
+    Route::post('unsubscribe/{token}', [$ou, 'unsubscribe'])->where('token', '[A-Za-z0-9]{40}')->middleware('throttle:30,1')
+        ->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class);
+});
+
 // Marketing email links: work even when the store is paused (people must always be able to unsubscribe)
 Route::middleware(['store.front', 'store.required'])->prefix('email')->group(function () {
     $n = \App\Http\Controllers\Storefront\NewsletterController::class;

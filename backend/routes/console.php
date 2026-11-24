@@ -58,3 +58,10 @@ Schedule::command('lumee:expire-unpaid-orders')->hourlyAt(25)->withoutOverlappin
 
 // Which markets each product suits: storefront ranking per country (after test-and-learn has run)
 Schedule::command('lumee:market-fit')->dailyAt('04:55')->withoutOverlapping();
+
+// Outreach sequences: one email per store per run (each store's own pace and daily limit), replies every 10 minutes
+Schedule::command('lumee:outreach')->everyMinute()->withoutOverlapping();
+Schedule::command('lumee:outreach --replies')->everyTenMinutes()->withoutOverlapping();
+
+// Lead searches set to repeat every day
+Schedule::command('lumee:repeat-lead-searches')->dailyAt('06:10')->withoutOverlapping();

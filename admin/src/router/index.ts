@@ -29,6 +29,7 @@ export const router = createRouter({
         { path: 'customers/quotes', name: 'quotes', component: () => import('@/views/customers/QuotesView.vue'), meta: { perm: 'customers', title: t('询价单') } },
         { path: 'customers/:id(\\d+)', name: 'customer', component: () => import('@/views/CustomerDetailView.vue'), meta: { perm: 'customers', title: t('客户详情'), menu: 'customers' } },
         { path: 'marketing/affiliates', name: 'affiliates', component: () => import('@/views/marketing/AffiliatesView.vue'), meta: { perm: 'marketing', title: t('营销 · 联盟营销') } },
+        { path: 'marketing/outreach', name: 'outreach', component: () => import('@/views/marketing/OutreachView.vue'), meta: { perm: 'marketing', title: t('营销 · 开发信') } },
         { path: 'marketing/creators', name: 'creators', component: () => import('@/views/marketing/CreatorsView.vue'), meta: { perm: 'marketing', title: t('营销 · 达人合作') } },
         { path: 'marketing/seo-pages', name: 'seo-pages', component: () => import('@/views/marketing/SeoPagesView.vue'), meta: { perm: 'marketing', title: t('营销 · SEO 落地页') } },
         { path: 'marketing/points', name: 'loyalty', component: () => import('@/views/marketing/LoyaltyView.vue'), meta: { perm: 'marketing', title: t('营销 · 积分') } },

@@ -22,7 +22,7 @@ class LeadAi
 {
     public const MODEL = 'claude-opus-5-5';
 
-    private const LANG_NAMES = ['en' => 'English', 'es' => 'Spanish', 'pt' => 'Portuguese', 'de' => 'German', 'fr' => 'French', 'it' => 'Italian',
+    public const LANG_NAMES = ['en' => 'English', 'es' => 'Spanish', 'pt' => 'Portuguese', 'de' => 'German', 'fr' => 'French', 'it' => 'Italian',
         'nl' => 'Dutch', 'pl' => 'Polish', 'tr' => 'Turkish', 'ru' => 'Russian', 'id' => 'Indonesian', 'vi' => 'Vietnamese', 'ar' => 'Arabic'];
 
     public static function ready(Store $store): bool

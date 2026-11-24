@@ -203,6 +203,20 @@ Route::prefix('admin')->group(function () {
             });
 
             Route::middleware('perm:marketing')->apiResource('discounts', DiscountController::class)->except('show');
+            Route::middleware('perm:customers,marketing')->group(function () {   // outreach sequences (开发信)
+                $out = \App\Http\Controllers\Admin\OutreachController::class;
+                Route::get('outreach', [$out, 'index']);
+                Route::put('outreach/mailbox', [$out, 'saveMailbox'])->middleware('throttle:30,1');
+                Route::post('outreach/mailbox/test', [$out, 'testMailbox'])->middleware('throttle:10,1');
+                Route::post('outreach/sequences', [$out, 'store']);
+                Route::put('outreach/sequences/{id}', [$out, 'update'])->whereNumber('id');
+                Route::delete('outreach/sequences/{id}', [$out, 'destroy'])->whereNumber('id');
+                Route::get('outreach/sequences/{id}/enrollments', [$out, 'enrollments'])->whereNumber('id');
+                Route::post('outreach/sequences/{id}/enroll', [$out, 'enroll'])->whereNumber('id');
+                Route::post('outreach/enrollments/{id}/stop', [$out, 'stop'])->whereNumber('id');
+                Route::get('outreach/enrollments/{id}/preview', [$out, 'preview'])->whereNumber('id')->middleware('throttle:30,1');
+                Route::patch('lead-searches/{id}/repeat', [$out, 'repeatSearch'])->whereNumber('id');
+            });
             Route::middleware('perm:marketing')->group(function () {
                 $flow = \App\Http\Controllers\Admin\EmailFlowController::class;
                 Route::get('flows', [$flow, 'index']);

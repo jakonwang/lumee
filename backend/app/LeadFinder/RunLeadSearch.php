@@ -80,6 +80,10 @@ class RunLeadSearch implements ShouldQueue
                 }
             }
             $search->update(['status' => 'done', 'stage' => null, 'finished_at' => now()]);
+            // Sequences set to take new leads automatically (score, type, country rules)
+            if ($this->leadIds === null) {
+                rescue(fn () => app(\App\Outreach\Sequencer::class)->autoEnroll($store, $leads->each->refresh(), 'leads'));
+            }
         } catch (Throwable $e) {
             report($e);
             $search->update(['status' => 'failed', 'stage' => null, 'error' => mb_substr($e->getMessage(), 0, 500), 'finished_at' => now()]);

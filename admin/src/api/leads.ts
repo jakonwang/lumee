@@ -18,7 +18,7 @@ export interface LeadDetail extends LeadRow {
 }
 export interface LeadSearch {
   id: number; name: string; industry: string; keywords: string[]; country: string; cities: string[]; source: 'google' | 'osm' | 'web' | 'manual'
-  channels: WebChannel[] | null
+  channels: WebChannel[] | null; repeat_daily: boolean
   status: 'queued' | 'running' | 'done' | 'failed'; stage: string | null; found: number; new_leads: number; enriched: number; to_enrich: number
   error: string | null; created_at: string; finished_at: string | null
 }

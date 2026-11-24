@@ -61,6 +61,12 @@ class Creators
         foreach ($found as [$platform, $kw, $hit]) {
             $new += $this->upsert($store, $platform, $kw, $hit) ? 1 : 0;
         }
+        // Sequences set to take new creators automatically
+        $handles = collect($found)->map(fn ($f) => [$f[0], Str::after($f[2]['source_id'], $f[0].':')]);
+        $people = Creator::where(fn ($q) => $handles->each(fn ($h) => $q->orWhere(fn ($w) => $w->where('platform', $h[0])->where('handle', $h[1]))))->get();
+        if ($people->isNotEmpty()) {
+            rescue(fn () => app(\App\Outreach\Sequencer::class)->autoEnroll($store, $people, 'creators'));
+        }
 
         return ['found' => count($found), 'new' => $new];
     }

@@ -9,6 +9,7 @@ import { NButton, NCard, NDynamicTags, NEmpty, NInput, NInputNumber, NModal, NPa
 import { http, errorMessage } from '@/api/http'
 import { compactNumber, flag } from '@/api/leads'
 import ScoreRing from '@/components/leads/ScoreRing.vue'
+import EnrollButton from '@/components/EnrollButton.vue'
 import { t } from '@/i18n'
 
 type Status = 'new' | 'contacted' | 'replied' | 'agreed' | 'declined'
@@ -196,6 +197,7 @@ function remove(c: Creator) {
           <div class="btns">
             <NSelect :value="c.status" size="small" :options="statusOptions" style="width: 110px" @update:value="(v: Status) => setStatus(c, v)" />
             <NButton size="small" secondary :loading="writing === c.id" @click="write(c)">{{ t('写邀请') }}</NButton>
+            <EnrollButton v-if="c.emails.length" audience="creators" :ids="[c.id]" quaternary @done="load" />
             <NButton v-if="!c.affiliate" size="small" quaternary @click="openAffiliate(c)">{{ t('转为推广员') }}</NButton>
             <NButton size="small" quaternary type="error" @click="remove(c)">{{ t('删除') }}</NButton>
           </div>

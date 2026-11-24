@@ -78,6 +78,7 @@ export const sections: NavSection[] = [
       { name: 'seo-pages', label: t('SEO 落地页'), keywords: '搜索引擎 关键词 谷歌 自然流量 seo landing pages google organic' },
       { name: 'loyalty', label: t('积分') },
       { name: 'leads', label: t('获客雷达'), keywords: 'B2B 客户开发 线索 leads prospecting b2b' },
+      { name: 'outreach', label: t('开发信'), keywords: '邮件序列 跟进 冷邮件 自动发送 outreach cold email sequences follow-up' },
     ],
   },
   {

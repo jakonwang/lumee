@@ -5,7 +5,7 @@
  */
 import { computed, defineAsyncComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
-  NAlert, NButton, NCard, NCheckbox, NDataTable, NDropdown, NDynamicTags, NEmpty, NIcon, NInput, NInputNumber, NModal, NPopconfirm, NProgress, NRadioButton,
+  NAlert, NButton, NCard, NCheckbox, NDataTable, NDropdown, NDynamicTags, NEmpty, NIcon, NInput, NInputNumber, NModal, NPopconfirm, NPopselect, NProgress, NRadioButton,
   NRadioGroup, NSelect, NSkeleton, useMessage, type DataTableColumns, type DataTableRowKey,
 } from 'naive-ui'
 import {
@@ -16,6 +16,7 @@ import { http, errorMessage } from '@/api/http'
 import { download } from '@/utils/download'
 import { SEGMENT_LABELS, SEGMENT_OPTIONS, STATUS_LABELS, STATUS_OPTIONS, dueText, emailBadge, flag, type LeadMeta, type LeadRow, type LeadSearch, type LeadSettings, type LeadStats, type MapLead, CHANNEL_LABELS, type Channel, type WebChannel } from '@/api/leads'
 import ScoreRing from '@/components/leads/ScoreRing.vue'
+import EnrollButton from '@/components/EnrollButton.vue'
 import LeadDrawer from '@/components/leads/LeadDrawer.vue'
 const LeadMap = defineAsyncComponent(() => import('@/components/leads/LeadMap.vue'))
 import LeadSettingsModal from '@/components/leads/LeadSettingsModal.vue'
@@ -115,6 +116,16 @@ async function importSites() {
 
 // ---------- Searches (live progress) ----------
 const searches = ref<LeadSearch[]>([])
+/** A search that runs again every morning: only companies not seen before become new leads. */
+async function toggleRepeat(id: number) {
+  const s = searches.value.find((x) => x.id === id)
+  if (!s) return
+  try {
+    const d = (await http.patch(`/lead-searches/${id}/repeat`, { repeat_daily: !s.repeat_daily })).data.data
+    s.repeat_daily = d.repeat_daily
+    message.success(d.repeat_daily ? t('每天早上会自动重复这个搜索，新找到的公司会出现在列表里') : t('已取消每天重复'))
+  } catch (e) { message.error(errorMessage(e)) }
+}
 const active = computed(() => searches.value.filter((s) => s.status === 'queued' || s.status === 'running'))
 const recent = computed(() => searches.value.filter((s) => s.status !== 'queued' && s.status !== 'running').slice(0, 6))
 let poll: ReturnType<typeof setTimeout> | undefined
@@ -436,7 +447,12 @@ onBeforeUnmount(() => clearTimeout(poll))
       <button v-for="s in recent" :key="s.id" class="rchip" :class="{ on: filters.search_id === s.id, failed: s.status === 'failed' }"
         :title="s.error ?? ''" @click="filters.search_id = filters.search_id === s.id ? null : s.id">
         {{ s.name }} <span v-if="s.status === 'failed'">· {{ t('失败') }}</span><span v-else>· {{ t('{0} 家', [s.found]) }}</span>
+        <span v-if="s.repeat_daily" class="daily">· {{ t('每天') }}</span>
       </button>
+      <NPopselect v-if="recent.some((s) => s.source !== 'manual')" :value="null" :options="recent.filter((s) => s.source !== 'manual').map((s) => ({ label: (s.repeat_daily ? '✓ ' : '') + s.name, value: s.id }))"
+        trigger="click" @update:value="toggleRepeat">
+        <button type="button" class="rchip">{{ t('每天自动重复…') }}</button>
+      </NPopselect>
     </div>
     <NAlert v-for="s in recent.filter((x) => x.status === 'failed' && x.error && Date.now() - new Date(x.finished_at ?? x.created_at).getTime() < 3600e3).slice(0, 1)" :key="`e${s.id}`"
       type="warning" :bordered="false" class="setup">{{ s.name }}：{{ s.error }}</NAlert>
@@ -472,6 +488,7 @@ onBeforeUnmount(() => clearTimeout(poll))
         <NButton size="small" :loading="bulkBusy" @click="bulk('analyze')"><template #icon><NIcon><SparklesOutline /></NIcon></template>{{ t('AI 分析') }}</NButton>
         <NButton size="small" :loading="bulkBusy" @click="bulk('recheck')">{{ t('重新抓取官网') }}</NButton>
         <NButton size="small" @click="bulk('star')"><template #icon><NIcon><Star /></NIcon></template>{{ t('标星') }}</NButton>
+        <EnrollButton audience="leads" :ids="checked" @done="load(true)" />
         <NPopconfirm @positive-click="bulk('delete')">
           <template #trigger><NButton size="small" quaternary><template #icon><NIcon><TrashOutline /></NIcon></template>{{ t('删除') }}</NButton></template>
           {{ t('删除这 {0} 条线索？', [checked.length]) }}
@@ -575,6 +592,7 @@ onBeforeUnmount(() => clearTimeout(poll))
 .rchip { border: 1px solid var(--border); background: var(--surface); border-radius: 99px; padding: 3px 10px; font-size: 12px; cursor: pointer; color: #3D4943; }
 .rchip.on { border-color: var(--brand-500); background: var(--brand-50); color: var(--brand-800); }
 .rchip.failed { color: var(--ink-muted); }
+.rchip .daily { color: var(--brand-700); }
 
 .table-card { overflow: hidden; }
 .toolbar { display: grid; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
