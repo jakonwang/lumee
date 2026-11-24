@@ -125,8 +125,72 @@
   }
 
   // ---- Platform readers: return partial product data, merged over the generic read ----
+  // AliExpress (2026 pages): the page data comes through window.__INIT_DATA_CALLBACK__(resolve, reject)
+  function aeInitData() {
+    const cb = window.__INIT_DATA_CALLBACK__;
+    if (typeof cb !== 'function') return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const t = setTimeout(() => resolve(null), 4000);
+      try { cb((d) => { clearTimeout(t); resolve(d); }, () => { clearTimeout(t); resolve(null); }); } catch { clearTimeout(t); resolve(null); }
+    });
+  }
+
+  // "30.918 ₫|30918|" / "US $9.99|9|99" → "30918" / "9.99"
+  function aePrice(local, fallback) {
+    const parts = String(local || '').split('|');
+    if (parts.length >= 2 && /^\d+$/.test(parts[1])) return parts[1] + (/^\d+$/.test(parts[2] || '') ? '.' + parts[2] : '');
+    return num(fallback);
+  }
+
+  async function aliexpressNew() {
+    const d = await aeInitData();
+    const r = d?.data?.result;
+    if (!r?.PRODUCT_TITLE) return null;
+    const out = {
+      title: r.PRODUCT_TITLE.text,
+      images: r.HEADER_IMAGE_PC?.imagePathList || [],
+      vendor: r.SHOP_CARD_PC?.storeName,
+    };
+    const props = (r.SKU?.skuProperties || []).slice(0, 3);
+    const priceMap = r.PRICE?.skuIdStrPriceInfoMap || {};
+    if (props.length && r.SKU?.skuPaths?.length) {
+      const valueOf = {};
+      props.forEach((p) => (p.skuPropertyValues || []).forEach((v) => {
+        valueOf[`${p.skuPropertyId}:${v.propertyValueIdLong ?? v.propertyValueId}`] = { name: p.skuPropertyName, value: v.propertyValueDisplayName || v.propertyValueName, image: v.skuPropertyImagePath };
+      }));
+      out.options = props.map((p) => ({ name: p.skuPropertyName, values: (p.skuPropertyValues || []).map((v) => v.propertyValueDisplayName || v.propertyValueName) }));
+      out.variants = r.SKU.skuPaths.map((s) => {
+        const opts = {}; let image = '';
+        String(s.path || '').split(';').forEach((pair) => {
+          const v = valueOf[pair];
+          if (v) { opts[v.name] = v.value; image = image || v.image || ''; }
+        });
+        const pr = priceMap[s.skuIdStr] || priceMap[String(s.skuId)] || {};
+        return { options: opts, sku: s.skuIdStr, price: aePrice(pr.salePriceLocal, pr.salePriceString), compare_price: num(pr.originalPrice?.value), inventory: Number.isInteger(s.skuStock) ? s.skuStock : undefined, image };
+      });
+      out.currency = Object.values(priceMap)[0]?.originalPrice?.currency || '';
+    }
+    // Specifications and the seller's description
+    const specs = (r.PRODUCT_PROP_PC?.outerProps || r.PRODUCT_PROP_PC?.props || []).filter((p) => p.attrName && p.attrValue);
+    let desc = '';
+    const descUrl = r.DESC?.pcDescUrl || r.DESC?.msiteDescUrl;
+    if (descUrl) {
+      try { desc = await (await fetch(descUrl, { credentials: 'omit' })).text(); } catch { /* description is optional */ }
+      desc = desc.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+    }
+    out.description = (specs.length ? '<table>' + specs.map((p) => `<tr><th>${esc(p.attrName)}</th><td>${esc(p.attrValue)}</td></tr>`).join('') + '</table>' : '') + desc;
+    return out;
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
   const READERS = {
-    aliexpress() {
+    async aliexpress() {
+      const fresh = await aliexpressNew();
+      if (fresh) return fresh;
+      // Older pages: window.runParams
       const d = window.runParams?.data || scriptJson(/window\.runParams\s*=\s*\{?/)?.data || scriptJson(/"skuModule"\s*:/) && { skuModule: scriptJson(/"skuModule"\s*:/) } || {};
       const sku = d.skuModule || d.skuComponent;
       const out = {
@@ -161,11 +225,13 @@
     },
 
     '1688'() {
-      const init = window.__INIT_DATA || scriptJson(/window\.__INIT_DATA\s*=\s*/) || scriptJson(/window\.__GLOBAL_DATA\s*=\s*/) || {};
+      // Offer pages have moved their data between these over the years
+      const init = { a: window.__INIT_DATA || scriptJson(/window\.__INIT_DATA\s*=\s*/), b: window.context || scriptJson(/window\.context\s*=\s*/),
+        c: window.__GLOBAL_DATA || scriptJson(/window\.__GLOBAL_DATA\s*=\s*/), d: window.iDetailData, e: window.iDetailConfig };
       const model = find(init, (o) => o.skuProps && (o.skuInfoMap || o.skuInfoMapOriginal)) || window.iDetailData?.sku || null;
       const out = {
         title: find(init, (o) => typeof o.subject === 'string')?.subject || clean(document.querySelector('.title-text, .d-title, h1')?.textContent),
-        images: (find(init, (o) => Array.isArray(o.offerImgList))?.offerImgList) || [...document.querySelectorAll('.detail-gallery-turn img, .tab-trigger img, .img-list-wrapper img')].map((i) => i.src),
+        images: (find(init, (o) => Array.isArray(o.offerImgList))?.offerImgList) || (find(init, (o) => Array.isArray(o.images) && o.images[0]?.fullPathImageURI)?.images || []).map((i) => i.fullPathImageURI).filter(Boolean).concat([...document.querySelectorAll('.detail-gallery-turn img, .tab-trigger img, .img-list-wrapper img, [class*="gallery"] img')].map((i) => i.src)),
         vendor: find(init, (o) => typeof o.companyName === 'string')?.companyName,
         currency: 'CNY',
       };
@@ -304,11 +370,11 @@
     return out;
   }
 
-  window.__lumeeExtract = function (opts = {}) {
+  window.__lumeeExtract = async function (opts = {}) {
     const platform = detectPlatform();
     let data = generic();
     try {
-      const own = READERS[platform.id]?.() || {};
+      const own = (await READERS[platform.id]?.()) || {};
       for (const [k, v] of Object.entries(own)) {
         if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) continue;
         data[k] = k === 'images' ? [...v, ...data.images] : v;
@@ -330,7 +396,8 @@
       title: clean(data.title).slice(0, 480),
       description: String(data.description || '').slice(0, 50000),
       images: images.slice(0, 50),
-      price: String(data.price || (prices.length ? Math.min(...prices) : '') || '').slice(0, 40),
+      // With SKUs, the lowest SKU price is the base price (the page's display price may be formatted for the visitor)
+      price: String((prices.length ? Math.min(...prices) : data.price) || '').slice(0, 40),
       compare_price: data.compare_price ? String(data.compare_price).slice(0, 40) : undefined,
       currency: /^[A-Z]{3}$/.test(currency) ? currency : undefined,
       vendor: data.vendor ? clean(data.vendor).slice(0, 190) : undefined,
@@ -360,7 +427,9 @@
       try {
         const url = new URL(u);
         url.hash = '';
-        if (!p) url.search = '';
+        // Keep the query only where it carries the product id
+        if (!/[?&](id|goods_id|item_id)=/.test(url.search)) url.search = '';
+        if (/aliexpress\./.test(url.hostname)) url.hostname = 'www.aliexpress.com';
         u = url.href;
       } catch { continue; }
       if (!isProduct(u) || seen.has(u)) continue;
@@ -373,4 +442,54 @@
   };
 
   window.__lumeePlatform = detectPlatform;
+
+  // Is the site asking for a login or a human check instead of showing the product?
+  window.__lumeeBlocked = function () {
+    const u = location.href;
+    const text = (document.body?.innerText || '').slice(0, 3000);
+    if (/login\.(taobao|1688|tmall|aliexpress)\.|passport\.|\/login|signin|sign-in/i.test(u) || (/temu\.com/.test(u) && /\bLogin\b/.test(document.title))) return 'login';
+    if (/punish|captcha|_____tmd_____|x5sec|verify|validate|robot|errors\/validateCaptcha/i.test(u)) return 'captcha';
+    // Only what the visitor can see: sites keep hidden anti-bot frames on normal pages
+    const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 60 && r.height > 30 && getComputedStyle(el).visibility !== 'hidden'; };
+    if ([...document.querySelectorAll('#nc_1_wrapper, .nc-container, #baxia-dialog-content, iframe[src*="captcha" i], iframe[src*="punish" i], form[action*="validateCaptcha"], #px-captcha, .g-recaptcha, .h-captcha, [class*="slider-captcha" i]')].some(visible)) return 'captcha';
+    if (/Access restricted|Robot Check|unusual traffic|请按住滑块|拖动到最右边|访问验证|安全验证|Are you a human|验证码/i.test(text)) return 'captcha';
+    return '';
+  };
+
+  // Scroll down like a reader so lazy lists and galleries load
+  window.__lumeeScroll = async function (steps = 8) {
+    for (let i = 0; i < steps; i++) {
+      window.scrollBy(0, window.innerHeight * (0.6 + Math.random() * 0.4));
+      await new Promise((r) => setTimeout(r, 450 + Math.random() * 500));
+    }
+    window.scrollTo(0, document.body.scrollHeight);
+    await new Promise((r) => setTimeout(r, 1200));
+    return document.body.scrollHeight;
+  };
+
+  // Go to the next page of a listing: a link when there is one, otherwise the pager's button
+  window.__lumeeNext = function () {
+    const link = document.querySelector('a[rel="next"], link[rel="next"], a.s-pagination-next, a[aria-label*="next" i], a[aria-label*="下一页"], .next-pagination-item.next, a.pagination-next');
+    if (link?.href) { location.href = link.href; return 'link'; }
+    // Most specific first; never the "jump 5 pages" (…) buttons, whose class also says next
+    const usable = (el) => el && !el.disabled && el.getAttribute('aria-disabled') !== 'true' && !/disabled|jump/i.test(String(el.className) + ' ' + String(el.parentElement?.className));
+    const selectors = ['.comet-pagination-next', '.next-pagination-item.next', '.pagination-next', 'button[aria-label*="next" i]', '[class*="pagination" i] [class*="next" i]', '[class*="pager" i] [class*="next" i]'];
+    let btn = null;
+    for (const sel of selectors) { btn = [...document.querySelectorAll(sel)].find(usable); if (btn) break; }
+    btn = btn || [...document.querySelectorAll('a, button')].find((el) => usable(el) && /^(下一页|下页|Next|Next page|›|»|>)$/i.test(el.textContent.trim()));
+    // The match may be the pager's <li>: click the button or link inside it
+    const target = btn && (btn.matches('a, button') ? btn : btn.querySelector('a, button') || btn);
+    if (target && !target.disabled) {
+      if (target.href && !/^javascript:/i.test(target.getAttribute('href') || '')) { location.href = target.href; return 'link'; }
+      target.click();
+      return 'button';
+    }
+    // A pager whose "next" is disabled: this is the last page
+    if (document.querySelector('.comet-pagination-next.comet-pagination-disabled, [class*="pagination" i] [class*="next" i][class*="disabled" i], [class*="pagination" i] [class*="next" i] button[disabled], [class*="pagination" i] button[class*="next" i][disabled], a[aria-label*="next" i][aria-disabled="true"]')) return '';
+    // ?page=N in the address
+    const url = new URL(location.href);
+    const key = ['page', 'pageNo', 'beginPage', 'p'].find((k) => url.searchParams.has(k));
+    if (key) { url.searchParams.set(key, String((parseInt(url.searchParams.get(key), 10) || 1) + 1)); location.href = url.href; return 'param'; }
+    return '';
+  };
 })();

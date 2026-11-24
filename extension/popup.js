@@ -52,7 +52,7 @@ function ago(t) {
 function go(view) {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
   document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== 'view-' + view; });
-  if (view === 'batch' && !links.length && tab) scan();
+  if (view === 'batch' && !links.length && tab) restoreScan();
   if (view === 'history') renderHistory();
 }
 document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => go(b.dataset.view)));
@@ -154,7 +154,13 @@ function pref(id, key, read = (el) => el.value) {
 }
 pref('defCurrency', 'currency');
 pref('defTags', 'tags');
-pref('delay', 'delay', (el) => Math.min(30, Math.max(1, parseInt(el.value, 10) || 4)));
+const int = (min, max, dflt) => (el) => Math.min(max, Math.max(min, parseInt(el.value, 10) || dflt));
+pref('delay', 'delay', int(1, 30, 4));
+pref('gapMin', 'gapMin', int(3, 300, 8));
+pref('gapMax', 'gapMax', int(3, 600, 20));
+pref('restEvery', 'restEvery', int(5, 500, 25));
+pref('restMinutes', 'restMinutes', int(1, 120, 3));
+pref('dailyLimit', 'dailyLimit', int(1, 2000, 150));
 pref('floatButton', 'floatButton', (el) => el.checked);
 pref('closeTabs', 'closeTabs', (el) => el.checked);
 
@@ -260,6 +266,7 @@ $('send').addEventListener('click', async () => {
     if (!r.ok) throw new Error(r.error);
     show(`已加入待审核：${r.variants > 1 ? r.variants + ' 个 SKU，' : ''}${r.images} 张图${r.duplicate ? '（店里可能已有相似商品）' : ''}`, false, conf.adminUrl ? { href: conf.adminUrl, text: '去审核 →' } : null);
     btn.querySelector('span').textContent = '重新采集并更新';
+    if (r.warning) setTimeout(() => show(r.warning, true), 2500);
     $('dupChip').hidden = false;
     $('dupChip').textContent = '已采集过 · 待审核';
     checkConnection();
@@ -272,22 +279,49 @@ $('send').addEventListener('click', async () => {
 });
 
 // ---------- Batch ----------
-async function scan() {
-  $('links').innerHTML = '<div class="state"><span class="spinner"></span>正在扫描…</div>';
+async function scan(quick = false) {
+  const pages = quick ? 1 : Number($('pages').value) || 1;
+  $('links').innerHTML = `<div class="state"><span class="spinner"></span>${quick ? '正在扫描…' : pages > 1 ? `正在扫描 ${pages} 页（自动滚动、翻页）…` : '正在扫描（自动往下滚动加载）…'}</div>`;
+  $('scan').disabled = true;
   try {
-    links = (await bg({ type: 'links', tabId: tab.id })).map((l) => ({ ...l, on: true }));
-  } catch {
+    links = (await bg({ type: 'links', tabId: tab.id, pages, scroll: !quick })).map((l) => ({ ...l, on: true }));
+  } catch (e) {
     links = [];
+    show('扫描失败：' + e.message, true);
+  } finally {
+    $('scan').disabled = false;
+    $('scanProgress').hidden = true;
   }
+  await markCollected();
+}
+
+async function markCollected() {
   if (links.length && conf.api) {
     try {
-      collectedMap = (await bg({ type: 'status', urls: links.slice(0, 100).map((l) => l.url) })).collected || {};
+      for (let i = 0; i < links.length; i += 100) {
+        Object.assign(collectedMap, (await bg({ type: 'status', urls: links.slice(i, i + 100).map((l) => l.url) })).collected || {});
+      }
       links.forEach((l) => { l.collected = collectedMap[l.url]; if (l.collected) l.on = false; });
     } catch { /* still usable without */ }
   }
   renderLinks();
 }
-$('scan').addEventListener('click', scan);
+$('scan').addEventListener('click', () => scan());
+
+// The last scan of this tab survives closing the popup (scanning several pages takes a while)
+async function restoreScan() {
+  const { lastScan, scanProgress } = await chrome.storage.local.get(['lastScan', 'scanProgress']);
+  if (scanProgress?.tabId === tab.id) return showScanProgress(scanProgress);
+  if (lastScan?.tabId === tab.id && Date.now() - lastScan.at < 3600000) {
+    links = lastScan.links.map((l) => ({ ...l, on: true }));
+    return markCollected();
+  }
+  scan(true);   // quick look without scrolling the page; 「扫描」 scrolls and turns pages
+}
+function showScanProgress(p) {
+  $('scanProgress').hidden = !p;
+  if (p) $('scanProgress').textContent = `正在扫描第 ${p.page} / ${p.pages} 页，已找到 ${p.found} 个商品…`;
+}
 
 function renderLinks() {
   $('linkBar').hidden = !links.length;
@@ -334,7 +368,8 @@ $('batchGo').addEventListener('click', async () => {
 });
 
 async function renderQueue() {
-  const { queue = [], paused = false } = await chrome.storage.local.get(['queue', 'paused']);
+  const { queue = [], pause = null, today } = await chrome.storage.local.get(['queue', 'pause', 'today']);
+  const todayN = today?.day === new Date().toLocaleDateString('en-CA') ? today.n : 0;
   const left = queue.filter((q) => q.status === 'waiting' || q.status === 'working').length;
   $('queueCount').hidden = !left;
   $('queueCount').textContent = left;
@@ -343,17 +378,34 @@ async function renderQueue() {
   const done = queue.filter((q) => q.status === 'done').length;
   const failed = queue.filter((q) => q.status === 'failed').length;
   $('qBar').style.width = Math.round(((done + failed) / queue.length) * 100) + '%';
-  $('qText').textContent = `${done} 个成功 · ${failed} 个失败 · ${left} 个等待${paused && left ? '（已暂停）' : ''}`;
-  $('qPause').hidden = paused || !left;
-  $('qResume').hidden = !paused || !left;
+  const limit = conf.dailyLimit || 150;
+  $('qText').textContent = `${done} 个成功 · ${failed} 个失败 · ${left} 个等待 · 今天已采集 ${todayN} / ${limit}`;
+  $('qPauseBtn').hidden = !!pause || !left;
   $('qRetry').hidden = !failed;
+  const box = $('qPause');
+  box.hidden = !pause || !left;
+  if (pause && left) {
+    const mins = pause.until ? Math.max(1, Math.round((pause.until - Date.now()) / 60000)) : 0;
+    const text = {
+      captcha: '网站弹出了验证（滑块/验证码），批量采集已暂停，并打开了那个页面。请在页面上完成验证，完成后会自动继续。',
+      login: '网站要求登录，批量采集已暂停。请在打开的页面上登录，登录后会自动继续。',
+      rest: `防封保护：休息中，约 ${mins} 分钟后自动继续。`,
+      limit: `今天已采集 ${limit} 个，达到每天上限，明天自动继续（可在设置里调整上限）。`,
+      user: '已暂停。',
+    }[pause.reason] || '已暂停。';
+    box.className = 'pause' + (pause.reason === 'captcha' || pause.reason === 'login' ? ' stop' : '');
+    $('qPauseText').textContent = text;
+    $('qShow').hidden = !pause.tabId;
+    $('qShow').onclick = () => chrome.tabs.update(pause.tabId, { active: true }).catch(() => show('那个页面已经关闭了，点「继续」重新打开', true));
+    $('qResume').textContent = pause.reason === 'rest' || pause.reason === 'limit' ? '立即继续' : '继续';
+  }
   const icon = { waiting: ['', '等待'], working: ['run', '采集中'], done: ['ok', '完成'], failed: ['err', '失败'] };
   $('qList').innerHTML = queue.slice().reverse().slice(0, 60).map((q) => `
     <div class="li${q.image ? '' : ' noimg'}"><span></span>${q.image ? `<img src="${esc(q.image)}" referrerpolicy="no-referrer" loading="lazy" alt="">` : ''}<div class="t"><div>${esc(q.title || q.url)}</div>${q.error ? `<small class="err-text">${esc(q.error)}</small>` : `<small>${esc(q.variants ? q.variants + ' 个 SKU' : new URL(q.url).hostname)}</small>`}</div>
     <span class="tag ${icon[q.status][0]}">${icon[q.status][1]}</span></div>`).join('');
 }
 const qAction = (action) => async (e) => { e.preventDefault(); await bg({ type: 'queue', action }); renderQueue(); };
-$('qPause').addEventListener('click', qAction('pause'));
+$('qPauseBtn').addEventListener('click', qAction('pause'));
 $('qResume').addEventListener('click', qAction('resume'));
 $('qRetry').addEventListener('click', qAction('retry'));
 $('qClear').addEventListener('click', qAction('clear'));
@@ -379,19 +431,25 @@ async function renderHistory() {
 $('histClear').addEventListener('click', async (e) => { e.preventDefault(); await chrome.storage.local.set({ history: [] }); renderHistory(); });
 
 chrome.storage.onChanged.addListener((c) => {
-  if (c.queue || c.paused) renderQueue();
+  if (c.queue || c.pause || c.today) renderQueue();
+  if (c.scanProgress && tab && (c.scanProgress.newValue?.tabId ?? tab.id) === tab.id) showScanProgress(c.scanProgress.newValue);
   if (c.history && !$('view-history').hidden) renderHistory();
 });
 
 // ---------- Start ----------
 (async () => {
-  conf = await chrome.storage.local.get(['api', 'key', 'currency', 'tags', 'delay', 'floatButton', 'closeTabs', 'hiddenSites']);
+  conf = await chrome.storage.local.get(['api', 'key', 'currency', 'tags', 'delay', 'floatButton', 'closeTabs', 'hiddenSites', 'gapMin', 'gapMax', 'restEvery', 'restMinutes', 'dailyLimit']);
   fillCurrencies($('currency'), conf.currency);
   fillCurrencies($('defCurrency'), conf.currency || 'CNY');
   $('api').value = conf.api || '';
   $('key').value = conf.key || '';
   $('defTags').value = conf.tags || '';
   $('delay').value = conf.delay || 4;
+  $('gapMin').value = conf.gapMin || 8;
+  $('gapMax').value = conf.gapMax || 20;
+  $('restEvery').value = conf.restEvery || 25;
+  $('restMinutes').value = conf.restMinutes || 3;
+  $('dailyLimit').value = conf.dailyLimit || 150;
   $('floatButton').checked = conf.floatButton !== false;
   $('closeTabs').checked = conf.closeTabs !== false;
   if (conf.hiddenSites?.length) {

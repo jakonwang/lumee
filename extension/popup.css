@@ -124,3 +124,10 @@ kbd { font: 11px ui-monospace, Consolas, monospace; border: 1px solid var(--line
 .msg { margin: 0 14px 14px; font-size: 13px; padding: 9px 12px; border-radius: 8px; background: var(--green-l); color: var(--green); border: 1px solid var(--green-b); }
 .msg.err { background: var(--red-l); color: var(--red); border-color: #f5c6c2; }
 .msg a { font-size: 13px; font-weight: 600; margin-left: 6px; }
+
+.primary.small { padding: 5px 12px; font-size: 12px; }
+.scan-ctl { display: inline-flex; gap: 6px; align-items: center; }
+.scan-ctl select { width: auto; padding: 3px 6px; font-size: 12px; }
+.pause { display: grid; gap: 8px; padding: 10px; border-radius: 8px; background: var(--amber-l); color: var(--amber); font-size: 12px; border: 1px solid #f1dca6; }
+.pause.stop { background: var(--red-l); color: var(--red); border-color: #f5c6c2; }
+.pause-actions { display: flex; gap: 8px; justify-content: flex-end; }

@@ -85,19 +85,29 @@
         <div class="row-between">
           <strong>采集队列</strong>
           <span class="links">
-            <a href="#" id="qPause">暂停</a><a href="#" id="qResume" hidden>继续</a><a href="#" id="qRetry" hidden>重试失败</a><a href="#" id="qClear">清除已完成</a><a href="#" id="qStop">全部取消</a>
+            <a href="#" id="qPauseBtn">暂停</a><a href="#" id="qRetry" hidden>重试失败</a><a href="#" id="qClear">清除已完成</a><a href="#" id="qStop">全部取消</a>
           </span>
         </div>
         <div class="progress"><i id="qBar"></i></div>
         <p class="hint" id="qText"></p>
+        <div id="qPause" class="pause" hidden>
+          <div id="qPauseText"></div>
+          <div class="pause-actions"><button class="ghost small" id="qShow" type="button" hidden>去完成验证</button><button class="primary small" id="qResume" type="button">继续</button></div>
+        </div>
         <div id="qList" class="list compact"></div>
       </div>
       <div class="card">
         <div class="row-between">
           <strong>本页的商品链接</strong>
-          <button class="ghost small" id="scan" type="button">重新扫描</button>
+          <span class="scan-ctl">
+            <select id="pages" title="自动往下滚动并翻页">
+              <option value="1">本页</option><option value="2">2 页</option><option value="3">3 页</option><option value="5">5 页</option><option value="10">10 页</option>
+            </select>
+            <button class="ghost small" id="scan" type="button">扫描</button>
+          </span>
         </div>
-        <p class="hint">适合搜索结果、店铺、分类页：勾选商品后，插件会在后台标签页里逐个打开、读取 SKU 和图片，再发送到待审核列表。保持浏览器开着即可，可以继续做别的事。</p>
+        <p class="hint">适合搜索结果、店铺、分类页：扫描时会自动往下滚动加载、按选择的页数翻页。勾选商品后，插件在后台标签页里逐个打开、读取 SKU 和图片，再发送到待审核列表。保持浏览器开着即可。</p>
+        <p class="hint" id="scanProgress" hidden></p>
         <div class="row-between toolbar" id="linkBar" hidden>
           <label class="check"><input type="checkbox" id="linkAll"> 全选 <small id="linkSel"></small></label>
           <a href="#" id="linkNew">只选未采集的</a>
@@ -152,13 +162,21 @@
           <span>默认标签（每个采集的商品都加上，逗号分隔）</span>
           <input id="defTags" placeholder="例如：1688, 待定价">
         </label>
-        <label class="field">
-          <span>批量采集：每个页面等待（秒）</span>
-          <input id="delay" type="number" min="1" max="30">
-        </label>
         <label class="check"><input type="checkbox" id="floatButton"> 在商品页右下角显示「采集到 Lumée」按钮</label>
         <label class="check"><input type="checkbox" id="closeTabs"> 批量采集完成后自动关闭标签页</label>
         <p class="hint" id="hiddenSitesInfo" hidden></p>
+      </div>
+      <div class="card">
+        <strong>防封保护（批量采集）</strong>
+        <p class="hint">像真人一样慢慢浏览：每个商品之间随机间隔、定时休息、每天限量。遇到验证码或登录页会立即暂停并打开那个页面，你完成验证后自动继续。默认值适合大多数情况，越慢越安全。</p>
+        <div class="grid2">
+          <label class="field"><span>商品间隔：最少（秒）</span><input id="gapMin" type="number" min="3" max="300"></label>
+          <label class="field"><span>最多（秒）</span><input id="gapMax" type="number" min="3" max="600"></label>
+          <label class="field"><span>每采集几个休息一次</span><input id="restEvery" type="number" min="5" max="500"></label>
+          <label class="field"><span>每次休息（分钟）</span><input id="restMinutes" type="number" min="1" max="120"></label>
+          <label class="field"><span>每天最多采集</span><input id="dailyLimit" type="number" min="1" max="2000"></label>
+          <label class="field"><span>页面加载后等待（秒）</span><input id="delay" type="number" min="1" max="30"></label>
+        </div>
       </div>
       <div class="card">
         <strong>支持的平台</strong>

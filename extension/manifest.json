@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lumée Collector",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Collect products from 1688, AliExpress, Temu, Amazon, Shopify and more into your Lumée store: SKUs, images, prices, batch collecting.",
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
   "action": { "default_popup": "popup.html", "default_title": "Lumée 商品采集", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },

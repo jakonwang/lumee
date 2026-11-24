@@ -1,8 +1,17 @@
-// Lumée Collector — background worker: sends pages to the store, runs the batch queue
-// (opens each product in a background tab, reads it, closes it), the right-click menu,
-// the keyboard shortcut and the history list.
+// Lumée Collector — background worker: sends pages to the store, scans listing pages
+// (scrolling and turning pages), runs the batch queue with protection against being
+// blocked (human-like pacing, daily limit, rests, stop on captcha/login), the right-click
+// menu, the keyboard shortcut and the history list.
 
-const DEFAULTS = { api: '', key: '', currency: 'CNY', floatButton: true, delay: 4, closeTabs: true, tags: '' };
+const DEFAULTS = {
+  api: '', key: '', currency: 'CNY', floatButton: true, tags: '', closeTabs: true,
+  delay: 4,          // seconds to let a product page render before reading it
+  gapMin: 8,         // seconds between two products (random in between)
+  gapMax: 20,
+  dailyLimit: 150,   // products per day in batch mode
+  restEvery: 25,     // take a break after this many products…
+  restMinutes: 3,    // …for this long
+};
 const HISTORY_MAX = 200;
 
 async function settings() {
@@ -30,21 +39,29 @@ async function api(path, body) {
   return data;
 }
 
+const inject = (tabId, world = 'ISOLATED') => chrome.scripting.executeScript({ target: { tabId }, files: ['extract.js'], world });
+async function run(tabId, func, args = [], world = 'ISOLATED') {
+  const [{ result }] = await chrome.scripting.executeScript({ target: { tabId }, func, args, world });
+  return result;
+}
+
 // Read the product in a tab (page's own JS world, to see its embedded data)
 async function read(tabId, html = true) {
-  await chrome.scripting.executeScript({ target: { tabId }, files: ['extract.js'], world: 'MAIN' });
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId }, world: 'MAIN', args: [{ html }],
-    func: (o) => window.__lumeeExtract(o),
-  });
+  await inject(tabId, 'MAIN');
+  const result = await run(tabId, (o) => window.__lumeeExtract(o), [{ html }], 'MAIN');
   if (!result) throw new Error('读取页面失败');
   return result;
+}
+
+async function blockedIn(tabId) {
+  await inject(tabId);
+  return run(tabId, () => window.__lumeeBlocked());
 }
 
 async function send(page, edits = {}, currency) {
   const s = await settings();
   if (currency) page.extracted.currency = currency;   // the merchant chose it in the popup
-  const tags = [...(edits.tags || []),...s.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean)];
+  const tags = [...(edits.tags || []), ...s.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean)];
   const res = await api('/api/collector/pages', {
     url: page.url, html: page.html, platform: page.platform, extracted: page.extracted,
     currency: currency || s.currency,
@@ -61,13 +78,19 @@ async function remember(entry) {
   await chrome.storage.local.set({ history: history.slice(0, HISTORY_MAX) });
 }
 
+const BLOCK_TEXT = { captcha: '网站要求验证（滑块/验证码）', login: '网站要求登录' };
+
 async function collectTab(tabId, edits, currency) {
   try {
+    const blocked = await blockedIn(tabId).catch(() => '');
     const page = await read(tabId);
-    if (!page.extracted.title) throw new Error('这个页面上没有找到商品');
+    // The product data is often there behind a check popup: take it, but tell the merchant
+    if (!page.extracted.title || (blocked && !page.extracted.variants && !page.extracted.price)) {
+      throw new Error(blocked ? BLOCK_TEXT[blocked] + '：请先在页面上完成，再采集' : '这个页面上没有找到商品');
+    }
     const res = await send(page, edits, currency);
     flash(tabId, '✓', '#1f7a4d');
-    return { ok: true, ...res };
+    return { ok: true, ...res, warning: blocked ? BLOCK_TEXT[blocked] + '，已采集成功；建议完成验证后再继续采集，避免被限制' : '' };
   } catch (e) {
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     await remember({ ok: false, url: tab?.url || '', title: tab?.title || '', error: e.message });
@@ -81,21 +104,13 @@ function flash(tabId, text, color) {
   chrome.action.setBadgeText({ text, tabId }).catch(() => {});
 }
 
-// ---------- Batch queue ----------
-// queue: [{url, title, image, status: waiting|working|done|failed|skipped, error}]
-let running = false;
-
-async function queueState() {
-  const { queue = [], paused = false } = await chrome.storage.local.get(['queue', 'paused']);
-  return { queue, paused };
-}
-
-async function setItem(url, patch) {
-  const { queue } = await queueState();
-  const i = queue.findIndex((q) => q.url === url);
-  if (i >= 0) {
-    queue[i] = { ...queue[i], ...patch };
-    await chrome.storage.local.set({ queue });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Waits that keep the service worker alive (it stops after ~30 s without extension calls)
+async function wait(ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    await sleep(Math.min(10000, end - Date.now()));
+    await chrome.storage.local.get('paused');
   }
 }
 
@@ -109,41 +124,115 @@ function waitLoaded(tabId, timeout = 45000) {
   });
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// ---------- Scanning listing pages ----------
+// Scrolls each page so lazy lists load, collects product links, then turns the page.
+async function scan(tabId, pages = 1, scroll = true) {
+  const found = new Map();
+  for (let i = 0; i < pages; i++) {
+    await chrome.storage.local.set({ scanProgress: { tabId, page: i + 1, pages, found: found.size } });
+    await inject(tabId);
+    if ((await run(tabId, () => window.__lumeeBlocked())) && i > 0) break;
+    if (scroll) await run(tabId, (n) => window.__lumeeScroll(n), [pages > 1 ? 10 : 8]);
+    const had = found.size;
+    for (const l of (await run(tabId, () => window.__lumeeLinks())) || []) if (!found.has(l.url)) found.set(l.url, l);
+    if (i === pages - 1 || (i > 0 && found.size === had)) break;   // last page, or the page didn't change
+    const before = (await chrome.tabs.get(tabId)).url;
+    const how = await run(tabId, () => window.__lumeeNext());
+    if (!how) break;
+    await sleep(1500);
+    if ((await chrome.tabs.get(tabId)).url !== before || how !== 'button') await waitLoaded(tabId);
+    await sleep(2000 + Math.random() * 2000);
+  }
+  const links = [...found.values()];
+  await chrome.storage.local.set({ scanProgress: null, lastScan: { tabId, links, at: Date.now() } });
+  return links;
+}
+
+// ---------- Batch queue ----------
+// queue: [{url, title, image, status: waiting|working|done|failed, error}]
+// pause: null | {reason: 'user'|'captcha'|'login'|'limit'|'rest', until?, tabId?, url?}
+let running = false;
+
+async function queueState() {
+  const { queue = [], pause = null, today = { day: '', n: 0 } } = await chrome.storage.local.get(['queue', 'pause', 'today']);
+  return { queue, pause, today: today.day === dayKey() ? today : { day: dayKey(), n: 0 } };
+}
+
+function dayKey() {
+  return new Date().toLocaleDateString('en-CA');
+}
+
+async function setItem(url, patch) {
+  const { queue } = await queueState();
+  const i = queue.findIndex((q) => q.url === url);
+  if (i >= 0) {
+    queue[i] = { ...queue[i], ...patch };
+    await chrome.storage.local.set({ queue });
+  }
+}
+
+async function setPause(pause) {
+  await chrome.storage.local.set({ pause });
+  updateBadge();
+}
 
 async function runQueue() {
   if (running) return;
   running = true;
   try {
     for (;;) {
-      const { queue, paused } = await queueState();
-      if (paused) break;
+      const { queue, pause, today } = await queueState();
       const next = queue.find((q) => q.status === 'waiting' || q.status === 'working');
       if (!next) break;
+      if (pause) {
+        // A rest or the daily limit ends by itself; captcha/login/user pauses wait for the merchant
+        if ((pause.reason === 'rest' || pause.reason === 'limit') && Date.now() >= pause.until) { await setPause(null); continue; }
+        if (pause.until) chrome.alarms.create('queue', { when: Math.max(Date.now() + 30000, pause.until) });
+        break;
+      }
+      const s = await settings();
+      if (today.n >= s.dailyLimit) {
+        const tomorrow = new Date(); tomorrow.setHours(24, 5, 0, 0);
+        await setPause({ reason: 'limit', until: tomorrow.getTime() });
+        continue;
+      }
+
       await setItem(next.url, { status: 'working', error: '' });
       updateBadge();
-      const s = await settings();
       let tab;
+      let keepTab = false;
       try {
         tab = await chrome.tabs.create({ url: next.url, active: false });
         await waitLoaded(tab.id);
-        // Let the page render its gallery and SKU data, scrolling once for lazy images
-        await sleep(Math.max(1, s.delay) * 1000);
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => window.scrollTo(0, document.body.scrollHeight / 2) }).catch(() => {});
-        await sleep(800);
+        await sleep(Math.max(1, s.delay) * 1000 + Math.random() * 1500);
+        const blocked = await blockedIn(tab.id);
+        if (blocked) {
+          // Stop everything and show the page: one captcha ignored becomes a ban
+          keepTab = true;
+          await setItem(next.url, { status: 'waiting', error: BLOCK_TEXT[blocked] });
+          await setPause({ reason: blocked, tabId: tab.id, url: next.url });
+          chrome.tabs.update(tab.id, { active: true }).catch(() => {});
+          chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+          chrome.tabs.sendMessage(tab.id, { type: 'toast', ok: false, error: BLOCK_TEXT[blocked] + '。批量采集已暂停：完成后会自动继续。' }).catch(() => {});
+          break;
+        }
+        await run(tab.id, () => window.__lumeeScroll(3)).catch(() => {});   // like a reader: load the gallery and SKU images
         const page = await read(tab.id);
-        if (/login|passport|signin|verify|captcha|punish/i.test(page.url) && !page.extracted.variants) throw new Error('网站要求登录或验证：请在浏览器里先登录、完成验证后再重试');
         if (!page.extracted.title) throw new Error('没有找到商品');
         const res = await send(page, {}, undefined);
-        await setItem(next.url, { status: 'done', title: res.title, variants: res.variants });
+        await setItem(next.url, { status: 'done', title: res.title, variants: res.variants, image: next.image || page.extracted.images[0] || '' });
+        const st = await queueState();
+        await chrome.storage.local.set({ today: { day: dayKey(), n: st.today.n + 1 } });
+        if ((st.today.n + 1) % s.restEvery === 0) await setPause({ reason: 'rest', until: Date.now() + s.restMinutes * 60000 });
       } catch (e) {
         await setItem(next.url, { status: 'failed', error: e.message });
         await remember({ ok: false, url: next.url, title: next.title, error: e.message });
-        if (/密钥|连接店铺|连不上/.test(e.message)) { await chrome.storage.local.set({ paused: true }); break; }
+        if (/密钥|连接店铺|连不上/.test(e.message)) { await setPause({ reason: 'user' }); break; }
       } finally {
-        if (tab && s.closeTabs) chrome.tabs.remove(tab.id).catch(() => {});
+        if (tab && s.closeTabs && !keepTab) chrome.tabs.remove(tab.id).catch(() => {});
       }
-      await sleep(1500 + Math.random() * 2500);   // don't hammer the site
+      const gap = (s.gapMin + Math.random() * Math.max(0, s.gapMax - s.gapMin)) * 1000;
+      await wait(gap);
     }
   } finally {
     running = false;
@@ -151,18 +240,32 @@ async function runQueue() {
   }
 }
 
+// After a captcha/login pause: resume by itself once that page shows the product again
+chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+  if (info.status !== 'complete') return;
+  const { pause } = await queueState();
+  if (!pause || pause.tabId !== tabId || !['captcha', 'login'].includes(pause.reason)) return;
+  await sleep(2500);
+  if (!(await blockedIn(tabId).catch(() => 'x'))) {
+    await setPause(null);
+    chrome.tabs.remove(tabId).catch(() => {});
+    runQueue();
+  }
+});
+
 async function updateBadge() {
-  const { queue } = await queueState();
+  const { queue, pause } = await queueState();
   const left = queue.filter((q) => q.status === 'waiting' || q.status === 'working').length;
-  chrome.action.setBadgeBackgroundColor({ color: '#1f7a4d' });
-  chrome.action.setBadgeText({ text: left ? String(left) : '' });
+  const stopped = pause && ['captcha', 'login'].includes(pause.reason);
+  chrome.action.setBadgeBackgroundColor({ color: stopped ? '#c0392b' : '#1f7a4d' });
+  chrome.action.setBadgeText({ text: stopped ? '!' : left ? String(left) : '' });
 }
 
 async function enqueue(items) {
   const { queue } = await queueState();
   const have = new Set(queue.map((q) => q.url));
   const added = items.filter((i) => i.url && !have.has(i.url)).map((i) => ({ url: i.url, title: i.title || '', image: i.image || '', status: 'waiting' }));
-  await chrome.storage.local.set({ queue: [...queue, ...added], paused: false });
+  await chrome.storage.local.set({ queue: [...queue, ...added] });
   runQueue();
   return added.length;
 }
@@ -172,27 +275,26 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     switch (msg.type) {
       case 'read': return read(msg.tabId, false);
+      case 'blocked': return blockedIn(msg.tabId);
       case 'collect': return collectTab(msg.tabId ?? sender.tab?.id, msg.edits || {}, msg.currency);
       case 'status': return api('/api/collector/status', { urls: msg.urls || [] });
-      case 'links': {
-        const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: msg.tabId }, files: ['extract.js'] })
-          .then(() => chrome.scripting.executeScript({ target: { tabId: msg.tabId }, func: () => window.__lumeeLinks() }));
-        return result || [];
-      }
+      case 'links': return scan(msg.tabId, Math.min(20, Math.max(1, msg.pages || 1)), msg.scroll !== false);
       case 'enqueue': return { added: await enqueue(msg.items || []) };
       case 'queue': {
-        if (msg.action === 'pause') await chrome.storage.local.set({ paused: true });
-        if (msg.action === 'resume') { await chrome.storage.local.set({ paused: false }); runQueue(); }
-        if (msg.action === 'retry') {
-          const { queue } = await queueState();
-          await chrome.storage.local.set({ queue: queue.map((q) => (q.status === 'failed' ? { ...q, status: 'waiting', error: '' } : q)), paused: false });
+        const { queue, pause } = await queueState();
+        if (msg.action === 'pause') await setPause({ reason: 'user' });
+        if (msg.action === 'resume') {
+          if (pause?.tabId) chrome.tabs.remove(pause.tabId).catch(() => {});
+          await setPause(null);
           runQueue();
         }
-        if (msg.action === 'clear') {
-          const { queue } = await queueState();
-          await chrome.storage.local.set({ queue: queue.filter((q) => q.status === 'waiting' || q.status === 'working') });
+        if (msg.action === 'retry') {
+          await chrome.storage.local.set({ queue: queue.map((q) => (q.status === 'failed' ? { ...q, status: 'waiting', error: '' } : q)) });
+          await setPause(null);
+          runQueue();
         }
-        if (msg.action === 'stop') await chrome.storage.local.set({ queue: [], paused: false });
+        if (msg.action === 'clear') await chrome.storage.local.set({ queue: queue.filter((q) => q.status === 'waiting' || q.status === 'working') });
+        if (msg.action === 'stop') { await chrome.storage.local.set({ queue: [] }); await setPause(null); }
         updateBadge();
         return queueState();
       }
@@ -206,7 +308,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 function menus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: 'page', title: '采集这个商品到 Lumée', contexts: ['page', 'image'] });
-    chrome.contextMenus.create({ id: 'link', title: '采集这个链接的商品（后台打开）', contexts: ['link'] });
+    chrome.contextMenus.create({ id: 'link', title: '采集这个链接的商品（加入批量队列）', contexts: ['link'] });
   });
 }
 
@@ -233,6 +335,6 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   chrome.tabs.sendMessage(tab.id, { type: 'toast', ...r }).catch(() => {});
 });
 
-// Keep the queue going if the worker was stopped in the middle
-chrome.alarms.create('queue', { periodInMinutes: 1 });
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'queue') runQueue(); });
+// Keep the queue going after rests, the daily limit, or if the worker was stopped in the middle
+chrome.alarms.create('tick', { periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener(() => runQueue());

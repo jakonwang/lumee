@@ -87,7 +87,7 @@
     chrome.runtime.sendMessage({ type: 'collect' }, (r) => {
       const res = r?.data || { ok: false, error: r?.error || '插件没有响应，请刷新页面再试' };
       setButton(res.ok ? 'done' : 'idle');
-      if (res.ok) toast('已加入待审核', `${res.title}${res.variants > 1 ? ` · ${res.variants} 个 SKU` : ''} · ${res.images} 张图`);
+      if (res.ok) toast('已加入待审核', `${res.title}${res.variants > 1 ? ` · ${res.variants} 个 SKU` : ''} · ${res.images} 张图${res.warning ? '。' + res.warning : ''}`, !!res.warning);
       else toast('采集失败', res.error, true);
     });
   });
