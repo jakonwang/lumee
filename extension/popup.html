@@ -2,44 +2,173 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>Lumée Collector</title>
-  <style>
-    body { width: 320px; margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #18211c; background: #fff; }
-    header { padding: 12px 16px; border-bottom: 1px solid #e3e8e5; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
-    header button { border: 0; background: none; color: #1f7a4d; cursor: pointer; font-size: 13px; }
-    main { padding: 14px 16px 16px; display: grid; gap: 10px; }
-    section { display: grid; gap: 10px; }
-    label { display: grid; gap: 4px; font-size: 12px; color: #5b6660; }
-    input, select { font: inherit; padding: 7px 9px; border: 1px solid #d3dbd6; border-radius: 8px; color: #18211c; background: #fff; }
-    .primary { background: #1f7a4d; color: #fff; border: 0; border-radius: 8px; padding: 9px; font: inherit; font-weight: 600; cursor: pointer; }
-    .primary:disabled { opacity: .6; cursor: default; }
-    .muted { color: #5b6660; font-size: 12px; margin: 0; }
-    .msg { margin: 0; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: #eef6f1; }
-    .msg.err { background: #fdecea; color: #8a1c12; }
-    [hidden] { display: none !important; }
-  </style>
+  <title>Lumée 商品采集</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <header><span>Lumée 商品采集</span><button id="toggle" type="button">设置</button></header>
-  <main>
-    <section id="collect">
-      <p class="muted" id="page">当前页面：—</p>
-      <label>价格货币（页面没写明时使用）
-        <select id="currency">
-          <option>CNY</option><option>USD</option><option>EUR</option><option>GBP</option><option>MXN</option>
-          <option>BRL</option><option>IDR</option><option>THB</option><option>PHP</option><option>MYR</option>
-        </select>
-      </label>
-      <button id="go" class="primary" type="button">采集此页</button>
+  <div class="app">
+    <header class="top">
+      <img src="icons/32.png" alt="" class="logo">
+      <div class="brand">
+        <strong>Lumée 商品采集</strong>
+        <span id="conn" class="conn"><i></i><span>未连接</span></span>
+      </div>
+      <button id="openAdmin" class="icon-btn" type="button" title="打开后台采集列表" hidden>
+        <svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>
+      </button>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button data-view="page" class="on" type="button">当前页</button>
+      <button data-view="batch" type="button">批量采集 <em id="queueCount" hidden></em></button>
+      <button data-view="history" type="button">记录</button>
+      <button data-view="settings" type="button">设置</button>
+    </nav>
+
+    <!-- Current page -->
+    <section id="view-page" class="view">
+      <div id="pageLoading" class="state"><span class="spinner"></span>正在读取页面…</div>
+      <div id="pageEmpty" class="state" hidden>
+        <svg viewBox="0 0 24 24" class="big"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <p id="pageEmptyText">这个页面不是商品页</p>
+        <button class="ghost" type="button" data-go="batch">扫描本页的商品链接</button>
+      </div>
+      <div id="product" hidden>
+        <div class="chips">
+          <span id="platform" class="chip strong"></span>
+          <span id="skuChip" class="chip" hidden></span>
+          <span id="dupChip" class="chip warn" hidden></span>
+        </div>
+        <label class="field">
+          <span>标题 <small>可以直接修改</small></span>
+          <textarea id="title" rows="2" maxlength="255"></textarea>
+        </label>
+        <div class="grid2">
+          <label class="field">
+            <span>进货价</span>
+            <input id="price" readonly>
+          </label>
+          <label class="field">
+            <span>货币 <small id="curHint"></small></span>
+            <select id="currency"></select>
+          </label>
+        </div>
+        <div class="field">
+          <span class="row-between">
+            <span>图片 <small id="imgCount"></small></span>
+            <span class="links"><a href="#" id="imgAll">全选</a><a href="#" id="imgFirst">只要前 8 张</a></span>
+          </span>
+          <div id="images" class="images"></div>
+          <small class="hint">点图片取消/选中；第一张选中的作为主图。最多上传 12 张。</small>
+        </div>
+        <details id="skuBox" class="sku" hidden>
+          <summary>SKU 明细</summary>
+          <div id="skuTable"></div>
+        </details>
+        <label class="field">
+          <span>标签 <small>用逗号分隔，可选</small></span>
+          <input id="tags" placeholder="例如：新品, 夏季">
+        </label>
+        <div class="actions">
+          <button id="send" class="primary" type="button">
+            <svg viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/></svg>
+            <span>采集到待审核</span>
+          </button>
+        </div>
+        <p class="hint center">快捷键 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> 不打开插件直接采集；也可以在页面上点右键。</p>
+      </div>
     </section>
-    <section id="settings" hidden>
-      <p class="muted">在后台「商品 › 采集 › 浏览器插件」生成连接密钥，把后台地址和密钥填在这里。</p>
-      <label>后台地址<input id="api" placeholder="https://api.your-store.com" autocomplete="off"></label>
-      <label>连接密钥<input id="key" placeholder="lmc_…" autocomplete="off"></label>
-      <button id="save" class="primary" type="button">保存</button>
+
+    <!-- Batch -->
+    <section id="view-batch" class="view" hidden>
+      <div class="card" id="queueCard" hidden>
+        <div class="row-between">
+          <strong>采集队列</strong>
+          <span class="links">
+            <a href="#" id="qPause">暂停</a><a href="#" id="qResume" hidden>继续</a><a href="#" id="qRetry" hidden>重试失败</a><a href="#" id="qClear">清除已完成</a><a href="#" id="qStop">全部取消</a>
+          </span>
+        </div>
+        <div class="progress"><i id="qBar"></i></div>
+        <p class="hint" id="qText"></p>
+        <div id="qList" class="list compact"></div>
+      </div>
+      <div class="card">
+        <div class="row-between">
+          <strong>本页的商品链接</strong>
+          <button class="ghost small" id="scan" type="button">重新扫描</button>
+        </div>
+        <p class="hint">适合搜索结果、店铺、分类页：勾选商品后，插件会在后台标签页里逐个打开、读取 SKU 和图片，再发送到待审核列表。保持浏览器开着即可，可以继续做别的事。</p>
+        <div class="row-between toolbar" id="linkBar" hidden>
+          <label class="check"><input type="checkbox" id="linkAll"> 全选 <small id="linkSel"></small></label>
+          <a href="#" id="linkNew">只选未采集的</a>
+        </div>
+        <div id="links" class="list"></div>
+        <label class="field">
+          <span>或者粘贴商品链接（一行一个）</span>
+          <textarea id="pasted" rows="3" placeholder="https://detail.1688.com/offer/…"></textarea>
+        </label>
+        <div class="actions">
+          <button id="batchGo" class="primary" type="button" disabled>开始采集</button>
+        </div>
+      </div>
     </section>
-    <p id="msg" class="msg" hidden></p>
-  </main>
+
+    <!-- History -->
+    <section id="view-history" class="view" hidden>
+      <div class="row-between toolbar">
+        <span class="hint" id="histSummary"></span>
+        <a href="#" id="histClear">清空记录</a>
+      </div>
+      <div id="history" class="list"></div>
+    </section>
+
+    <!-- Settings -->
+    <section id="view-settings" class="view" hidden>
+      <div class="card">
+        <strong>连接店铺</strong>
+        <p class="hint">在后台「商品 › 采集 › 浏览器插件」点「生成连接码」，复制后粘贴到这里。</p>
+        <label class="field">
+          <span>连接码</span>
+          <textarea id="code" rows="2" placeholder="LUMEE-…" spellcheck="false"></textarea>
+        </label>
+        <details class="advanced" id="advanced">
+          <summary>手动填写后台地址和密钥</summary>
+          <label class="field"><span>后台地址</span><input id="api" placeholder="https://api.your-store.com" autocomplete="off" spellcheck="false"></label>
+          <label class="field"><span>连接密钥</span><input id="key" placeholder="lmc_…" autocomplete="off" spellcheck="false"></label>
+        </details>
+        <div class="actions two">
+          <button id="save" class="primary" type="button">保存并测试连接</button>
+          <button id="disconnect" class="ghost" type="button" hidden>断开</button>
+        </div>
+        <div id="connInfo" class="conn-info" hidden></div>
+      </div>
+      <div class="card">
+        <strong>采集偏好</strong>
+        <label class="field">
+          <span>默认货币（页面没写明价格货币时使用）</span>
+          <select id="defCurrency"></select>
+        </label>
+        <label class="field">
+          <span>默认标签（每个采集的商品都加上，逗号分隔）</span>
+          <input id="defTags" placeholder="例如：1688, 待定价">
+        </label>
+        <label class="field">
+          <span>批量采集：每个页面等待（秒）</span>
+          <input id="delay" type="number" min="1" max="30">
+        </label>
+        <label class="check"><input type="checkbox" id="floatButton"> 在商品页右下角显示「采集到 Lumée」按钮</label>
+        <label class="check"><input type="checkbox" id="closeTabs"> 批量采集完成后自动关闭标签页</label>
+        <p class="hint" id="hiddenSitesInfo" hidden></p>
+      </div>
+      <div class="card">
+        <strong>支持的平台</strong>
+        <p class="hint">读取完整 SKU（规格、每个 SKU 的价格和图片）：1688、速卖通、Temu、淘宝/天猫。读取标题、图片、价格：Amazon、SHEIN、eBay、Etsy、Walmart、TikTok Shop、Shopee、Lazada、Mercado Libre，以及所有 Shopify、WooCommerce 店铺和带商品结构化数据的网站。</p>
+        <p class="hint">需要登录的网站，先在浏览器里登录再采集。</p>
+      </div>
+    </section>
+
+    <div id="msg" class="msg" hidden></div>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -232,6 +232,51 @@ class CollectTest extends TestCase
         $this->postJson('/api/collector/pages', ['url' => 'https://x.example.com/3', 'html' => $html], ['X-Collector-Key' => $key])->assertUnauthorized();
     }
 
+    public function test_browser_extension_sends_platform_skus_edits_and_checks_status(): void
+    {
+        $res = $this->as()->postJson('/api/admin/collect/extension-key')->assertOk();
+        $key = $res->json('key');
+        // The connection code carries the address and key together
+        $code = json_decode(base64_decode(strtr(substr($res->json('code'), 6), '-_', '+/')), true);
+        $this->assertSame($key, $code['key']);
+        $this->assertSame($res->json('api'), $code['api']);
+
+        $this->app['auth']->forgetGuards();
+        $this->flushHeaders();
+        $h = ['X-Collector-Key' => $key];
+        $url = 'https://detail.1688.com/offer/123.html';
+        $status = $this->postJson('/api/collector/status', ['urls' => [$url]], $h)->assertOk()->assertJsonStructure(['store', 'admin_url', 'counts']);
+        $this->assertNull($status->json('collected')[$url]);
+        $this->postJson('/api/collector/status', [], ['X-Collector-Key' => $key.'x'])->assertUnauthorized();
+
+        // The page's tags have one price; the platform data has the SKUs, which win
+        $html = '<meta property="og:title" content="Silk scarf"><meta property="product:price:amount" content="10">';
+        $this->postJson('/api/collector/pages', [
+            'url' => $url, 'html' => $html, 'platform' => '1688',
+            'extracted' => [
+                'title' => '真丝丝巾', 'currency' => 'CNY', 'price' => '18.5', 'images' => ['https://cbu01.alicdn.com/a.jpg', 'https://cbu01.alicdn.com/b.jpg'],
+                'options' => [['name' => '颜色', 'values' => ['粉色', '绿色']]],
+                'variants' => [
+                    ['options' => ['颜色' => '粉色'], 'price' => '18.50', 'inventory' => 300, 'image' => 'https://cbu01.alicdn.com/pink.jpg'],
+                    ['options' => ['颜色' => '绿色'], 'price' => '19.00', 'inventory' => 0],
+                ],
+            ],
+            'edits' => ['title' => 'Silk scarf, 90 cm', 'images' => ['https://cbu01.alicdn.com/b.jpg'], 'tags' => ['1688', 'new']],
+        ], $h)->assertCreated()->assertJsonPath('variants', 2)->assertJsonPath('images', 1);
+        $item = $this->item();
+        $this->assertSame('1688', $item->platform);
+        $this->assertSame('Silk scarf, 90 cm', $item->data['title']);
+        $this->assertSame(['https://cbu01.alicdn.com/b.jpg'], $item->data['images']);   // only the images chosen in the extension
+        $this->assertSame(['1688', 'new'], $item->data['tags']);
+        $this->assertSame('CNY', $item->data['currency']);
+        $this->assertSame([1850, 1900], array_column($item->data['variants'], 'cost'));
+        $this->assertSame(300, $item->data['variants'][0]['inventory']);
+        $this->assertSame('https://cbu01.alicdn.com/pink.jpg', $item->data['variants'][0]['image']);
+
+        $found = $this->postJson('/api/collector/status', ['urls' => [$url]], $h)->assertOk()->json('collected')[$url];
+        $this->assertSame([$item->id, 'ready'], [$found['id'], $found['status']]);
+    }
+
     public function test_ai_answer_translates_options_without_breaking_variants(): void
     {
         $d = \App\Collect\Item::normalize([

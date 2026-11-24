@@ -1,9 +1,18 @@
 {
   "manifest_version": 3,
   "name": "Lumée Collector",
-  "version": "1.0.0",
-  "description": "Send the product page you have open to your Lumée store's collection list (Products › Collect).",
-  "action": { "default_popup": "popup.html", "default_title": "Lumée Collector" },
-  "permissions": ["activeTab", "scripting", "storage"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"]
+  "version": "2.0.0",
+  "description": "Collect products from 1688, AliExpress, Temu, Amazon, Shopify and more into your Lumée store: SKUs, images, prices, batch collecting.",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": { "default_popup": "popup.html", "default_title": "Lumée 商品采集", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },
+  "options_page": "popup.html?view=settings&full=1",
+  "background": { "service_worker": "background.js" },
+  "permissions": ["activeTab", "scripting", "storage", "tabs", "contextMenus", "alarms"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "content_scripts": [
+    { "matches": ["http://*/*", "https://*/*"], "js": ["extract.js", "content.js"], "run_at": "document_idle" }
+  ],
+  "commands": {
+    "collect-page": { "suggested_key": { "default": "Alt+Shift+S" }, "description": "采集当前商品页" }
+  }
 }

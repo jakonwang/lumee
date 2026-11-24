@@ -288,44 +288,126 @@ class CollectController extends Controller
         $settings['collector_key_hash'] = hash('sha256', $key);
         $store->forceFill(['settings' => $settings])->save();
 
-        return response()->json(['key' => $key, 'api' => rtrim(config('app.url'), '/')]);
+        $api = rtrim(config('app.url'), '/');
+
+        // One code to paste into the extension: address + key
+        return response()->json(['key' => $key, 'api' => $api, 'code' => 'LUMEE-'.rtrim(strtr(base64_encode(json_encode(['api' => $api, 'key' => $key])), '+/', '-_'), '=')]);
+    }
+
+    /**
+     * The browser extension checks its connection and whether pages were collected already.
+     * Authenticated by the store's collector key only.
+     */
+    public function extensionStatus(Request $request, CurrentStore $current): JsonResponse
+    {
+        $store = $this->collectorStore($request);
+        if (! $store) {
+            return response()->json(['message' => __('采集密钥无效，请在后台「商品 › 采集」重新生成')], 401);
+        }
+        $current->set($store);
+        $urls = array_slice(array_values(array_filter((array) $request->input('urls', []), 'is_string')), 0, 100);
+        $found = $urls ? CollectedItem::whereIn('url_hash', array_map(fn ($u) => Item::hash($u), $urls))->get(['id', 'url_hash', 'status', 'data'])->keyBy('url_hash') : collect();
+
+        return response()->json([
+            'store' => $store->name,
+            'admin_url' => rtrim((string) config('lumee.admin_url'), '/').'/collect',
+            'currency' => $store->baseCurrency(),
+            'counts' => CollectedItem::selectRaw('status, COUNT(*) as n')->groupBy('status')->pluck('n', 'status'),
+            'collected' => (object) collect($urls)->mapWithKeys(function ($u) use ($found) {
+                $i = $found[Item::hash($u)] ?? null;
+
+                return [$u => $i ? ['id' => $i->id, 'status' => $i->status, 'title' => $i->data['title'] ?? ''] : null];
+            })->all(),
+        ]);
     }
 
     /**
      * The browser extension sends the page the merchant has open (it may be behind a login or bot
      * check that the server can't pass). Authenticated by the store's collector key only.
+     * extracted = what the extension read off the page (platform data with variants on the sites it knows);
+     * edits = what the merchant changed in the extension before sending (title, chosen images, tags).
      */
     public function fromExtension(Request $request, CurrentStore $current, Pipeline $pipeline): JsonResponse
     {
-        $key = (string) $request->header('X-Collector-Key');
-        $store = preg_match('/^lmc_(\d+)_[A-Za-z0-9]{40}$/', $key, $m) ? Store::find((int) $m[1]) : null;
-        if (! $store || empty($store->settings['collector_key_hash']) || ! hash_equals($store->settings['collector_key_hash'], hash('sha256', $key))) {
+        $store = $this->collectorStore($request);
+        if (! $store) {
             return response()->json(['message' => __('采集密钥无效，请在后台「商品 › 采集」重新生成')], 401);
         }
         $data = $request->validate([
             'url' => ['required', 'string', 'max:2000'],
             'html' => ['nullable', 'string', 'max:1600000'],
+            'platform' => ['nullable', 'string', 'max:30'],
             'extracted' => ['nullable', 'array'],
             'extracted.title' => ['nullable', 'string', 'max:500'],
-            'extracted.description' => ['nullable', 'string', 'max:20000'],
-            'extracted.images' => ['nullable', 'array', 'max:40'],
+            'extracted.description' => ['nullable', 'string', 'max:60000'],
+            'extracted.images' => ['nullable', 'array', 'max:60'],
             'extracted.images.*' => ['string', 'max:2000'],
             'extracted.price' => ['nullable', 'string', 'max:50'],
+            'extracted.compare_price' => ['nullable', 'string', 'max:50'],
             'extracted.currency' => ['nullable', 'string', 'size:3'],
+            'extracted.vendor' => ['nullable', 'string', 'max:200'],
+            'extracted.category' => ['nullable', 'string', 'max:200'],
+            'extracted.sku' => ['nullable', 'string', 'max:100'],
+            'extracted.options' => ['nullable', 'array', 'max:3'],
+            'extracted.options.*.name' => ['required', 'string', 'max:60'],
+            'extracted.options.*.values' => ['required', 'array', 'max:200'],
+            'extracted.options.*.values.*' => ['nullable', 'string', 'max:200'],
+            'extracted.variants' => ['nullable', 'array', 'max:300'],
+            'extracted.variants.*.options' => ['nullable', 'array'],
+            'extracted.variants.*.price' => ['nullable', 'string', 'max:50'],
+            'extracted.variants.*.compare_price' => ['nullable', 'string', 'max:50'],
+            'extracted.variants.*.sku' => ['nullable', 'string', 'max:100'],
+            'extracted.variants.*.image' => ['nullable', 'string', 'max:2000'],
+            'extracted.variants.*.inventory' => ['nullable', 'integer', 'min:0'],
             'currency' => ['nullable', 'string', 'size:3'],
+            'edits' => ['nullable', 'array'],
+            'edits.title' => ['nullable', 'string', 'max:255'],
+            'edits.images' => ['nullable', 'array', 'max:60'],
+            'edits.images.*' => ['string', 'max:2000'],
+            'edits.tags' => ['nullable', 'array', 'max:30'],
+            'edits.tags.*' => ['string', 'max:60'],
         ]);
         $url = Item::url($data['url']) ?? abort(422, __('网址无效'));
         $current->set($store);
-        $currency = strtoupper($data['currency'] ?? $data['extracted']['currency'] ?? 'USD');
+        $extracted = $data['extracted'] ?? [];
+        $currency = strtoupper($extracted['currency'] ?? $data['currency'] ?? 'USD');
 
-        $parsed = ($data['html'] ?? '') !== '' ? Parsers::page($data['html'], $url, $currency) : null;
-        $parsed ??= Parsers::extracted($data['extracted'] ?? [], $url, $currency);
+        // Platform data with variants (1688, AliExpress…) beats the page's generic tags; otherwise the page's structured data first
+        $fromPage = ($data['html'] ?? '') !== '' ? Parsers::page($data['html'], $url, $currency) : null;
+        $fromExt = Parsers::extracted($extracted, $url, $currency);
+        $useExt = $fromExt && (! $fromPage || count($fromExt['variants']) > count($fromPage['variants']));
+        $parsed = $useExt ? $fromExt : ($fromPage ?? $fromExt);
         if (! $parsed) {
             return response()->json(['message' => __('这个页面上没有找到商品信息')], 422);
         }
-        $item = $pipeline->receive($store, $url, 'extension', $parsed);
+        if (! $useExt && $fromExt) {
+            // The page's gallery often isn't in its structured data
+            $parsed['images'] = array_values(array_unique([...$parsed['images'] ?? [], ...$fromExt['images'] ?? []]));
+        }
+        $edits = $data['edits'] ?? [];
+        if (trim((string) ($edits['title'] ?? '')) !== '') {
+            $parsed['title'] = trim($edits['title']);
+        }
+        if (! empty($edits['images'])) {
+            $parsed['images'] = array_map(fn ($i) => \App\LeadFinder\SafeFetcher::absolute($i, $url), $edits['images']);
+        }
+        if (! empty($edits['tags'])) {
+            $parsed['tags'] = array_values(array_unique([...$parsed['tags'] ?? [], ...$edits['tags']]));
+        }
+        $platform = preg_match('/^[a-z0-9]{2,30}$/', (string) ($data['platform'] ?? '')) ? $data['platform'] : 'extension';
+        $item = $pipeline->receive($store, $url, $platform, Item::normalize($parsed));
 
-        return response()->json(['id' => $item->id, 'title' => $item->data['title'] ?? '', 'status' => $item->status], 201);
+        return response()->json(['id' => $item->id, 'title' => $item->data['title'] ?? '', 'status' => $item->status,
+            'variants' => count($item->data['variants'] ?? []), 'images' => count($item->data['images'] ?? []),
+            'duplicate' => $item->checks['duplicate'] ?? null], 201);
+    }
+
+    private function collectorStore(Request $request): ?Store
+    {
+        $key = (string) $request->header('X-Collector-Key');
+        $store = preg_match('/^lmc_(\d+)_[A-Za-z0-9]{40}$/', $key, $m) ? Store::find((int) $m[1]) : null;
+
+        return $store && ! empty($store->settings['collector_key_hash']) && hash_equals($store->settings['collector_key_hash'], hash('sha256', $key)) ? $store : null;
     }
 
     private function row(CollectedItem $i, bool $full = false): array

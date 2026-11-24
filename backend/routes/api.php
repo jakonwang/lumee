@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\Route;
 */
 // Browser extension (采集插件): sends the product page the merchant has open. Its own key, not a login.
 Route::post('collector/pages', [\App\Http\Controllers\Admin\CollectController::class, 'fromExtension'])->middleware('throttle:60,1');
+Route::post('collector/status', [\App\Http\Controllers\Admin\CollectController::class, 'extensionStatus'])->middleware('throttle:120,1');
 
 Route::prefix('admin')->group(function () {
     Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:register');

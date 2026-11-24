@@ -3253,5 +3253,13 @@
   "已取消每天重复": "No longer repeats daily",
   "每天": "daily",
   "每天自动重复…": "Repeat daily…",
-  "营销 · 开发信": "Marketing · Outreach"
+  "营销 · 开发信": "Marketing · Outreach",
+  "在 1688、速卖通、Temu、淘宝、Amazon 等网站上一键采集：读取完整 SKU（规格、每个 SKU 的价格和图片），采集前可以改标题、挑图片；也可以在搜索结果或店铺页批量采集。商品进入这里的待审核列表。": "Collect from 1688, AliExpress, Temu, Taobao, Amazon and more in one click: it reads every SKU (options, each SKU's price and image), lets you edit the title and pick images first, and can batch-collect from search results or store pages. Products land in the review list here.",
+  "点下面的「生成连接码」，复制后粘贴到插件的「设置」里，点「保存并测试连接」。": "Click \"Generate connection code\" below, paste it into the extension's Settings and click \"Save and test\".",
+  "已经生成过连接码。重新生成后，旧的立即失效，插件需要粘贴新的。": "A connection code was generated before. A new one stops the old one at once; paste the new one into the extension.",
+  "连接码": "Connection code",
+  "手动填写时用的后台地址和密钥": "Address and key, for entering them by hand",
+  "连接码只显示这一次。它只能把商品发送到这个店铺的采集列表，不能登录后台。": "The code is shown only once. It can only send products to this store's collection list; it can't sign in to the admin.",
+  "重新生成连接码": "Generate a new code",
+  "生成连接码": "Generate connection code"
 }

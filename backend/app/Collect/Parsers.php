@@ -97,20 +97,42 @@ final class Parsers
         return self::jsonLd($html, $url, $currency) ?? self::openGraph($html, $url, $currency);
     }
 
-    /** What the browser extension read off the page when the page itself publishes no product data. */
+    /**
+     * What the browser extension read off the page: platform data (options, variants with their own
+     * prices and images) on the sites it knows, otherwise a best guess at title, images and price.
+     */
     public static function extracted(array $e, string $url, string $currency): ?array
     {
         $title = trim((string) ($e['title'] ?? ''));
         if ($title === '') {
             return null;
         }
+        $abs = fn ($i) => SafeFetcher::absolute((string) $i, $url);
+        $base = Item::money($e['price'] ?? null) ?? 0;
+        $compare = Item::money($e['compare_price'] ?? null);
+        $variants = [];
+        foreach ((array) ($e['variants'] ?? []) as $v) {
+            if (! is_array($v)) {
+                continue;
+            }
+            $cost = Item::money($v['price'] ?? null) ?? $base;
+            $cmp = Item::money($v['compare_price'] ?? null);
+            $variants[] = ['options' => array_map('strval', array_filter((array) ($v['options'] ?? []), 'is_scalar')), 'sku' => $v['sku'] ?? null,
+                'cost' => $cost, 'compare_cost' => $cmp > $cost ? $cmp : null, 'inventory' => $v['inventory'] ?? null,
+                'image' => ! empty($v['image']) ? $abs($v['image']) : null];
+        }
+        $images = array_map($abs, (array) ($e['images'] ?? []));
+        array_push($images, ...array_filter(array_column($variants, 'image')));
 
         return Item::normalize([
             'title' => $title,
             'description' => (string) ($e['description'] ?? ''),
-            'images' => array_map(fn ($i) => SafeFetcher::absolute((string) $i, $url), (array) ($e['images'] ?? [])),
+            'vendor' => $e['vendor'] ?? null,
+            'product_type' => $e['category'] ?? null,
+            'images' => $images,
             'currency' => $e['currency'] ?? $currency,
-            'variants' => [['options' => [], 'cost' => Item::money($e['price'] ?? null) ?? 0]],
+            'options' => (array) ($e['options'] ?? []),
+            'variants' => $variants ?: [['options' => [], 'sku' => $e['sku'] ?? null, 'cost' => $base, 'compare_cost' => $compare > $base ? $compare : null]],
         ]);
     }
 

@@ -211,7 +211,7 @@ async function saveRules() {
 
 // Browser extension
 const showExt = ref(false)
-const ext = ref<{ key: string; api: string } | null>(null)
+const ext = ref<{ key: string; api: string; code: string } | null>(null)
 async function newKey() {
   try {
     ext.value = (await http.post('/collect/extension-key')).data
@@ -472,20 +472,24 @@ async function copy(text: string) {
 
     <!-- Browser extension -->
     <NModal v-model:show="showExt" preset="card" :title="t('浏览器采集插件')" style="max-width: 600px">
-      <p class="muted">{{ t('在 1688、速卖通、Temu 等需要登录或有访问防护的网站上，打开商品页后点插件里的「采集此页」，商品会直接进入这里的待审核列表。插件只读取当前打开的页面。') }}</p>
+      <p class="muted">{{ t('在 1688、速卖通、Temu、淘宝、Amazon 等网站上一键采集：读取完整 SKU（规格、每个 SKU 的价格和图片），采集前可以改标题、挑图片；也可以在搜索结果或店铺页批量采集。商品进入这里的待审核列表。') }}</p>
       <ol class="steps">
         <li>{{ t('Chrome 打开 chrome://extensions，开启右上角「开发者模式」。') }}</li>
         <li>{{ t('点「加载已解压的扩展程序」，选择项目里的 extension 文件夹。') }}</li>
-        <li>{{ t('生成连接密钥，把后台地址和密钥填进插件的设置。') }}</li>
+        <li>{{ t('点下面的「生成连接码」，复制后粘贴到插件的「设置」里，点「保存并测试连接」。') }}</li>
       </ol>
-      <NAlert v-if="ctx.extension_connected && !ext" type="info" :bordered="false" style="margin-bottom: 12px">{{ t('已经生成过密钥。重新生成后，旧密钥立即失效。') }}</NAlert>
+      <NAlert v-if="ctx.extension_connected && !ext" type="info" :bordered="false" style="margin-bottom: 12px">{{ t('已经生成过连接码。重新生成后，旧的立即失效，插件需要粘贴新的。') }}</NAlert>
       <template v-if="ext">
-        <div class="kv"><span>{{ t('后台地址') }}</span><code>{{ ext.api }}</code><NButton size="tiny" @click="copy(ext.api)">{{ t('复制') }}</NButton></div>
-        <div class="kv"><span>{{ t('连接密钥') }}</span><code>{{ ext.key }}</code><NButton size="tiny" @click="copy(ext.key)">{{ t('复制') }}</NButton></div>
-        <p class="muted small">{{ t('密钥只显示这一次。它只能把商品页发送到这个店铺的采集列表，不能登录后台。') }}</p>
+        <div class="kv"><span>{{ t('连接码') }}</span><code>{{ ext.code }}</code><NButton size="tiny" type="primary" @click="copy(ext.code)">{{ t('复制') }}</NButton></div>
+        <details class="muted small" style="margin-bottom: 8px">
+          <summary>{{ t('手动填写时用的后台地址和密钥') }}</summary>
+          <div class="kv"><span>{{ t('后台地址') }}</span><code>{{ ext.api }}</code><NButton size="tiny" @click="copy(ext.api)">{{ t('复制') }}</NButton></div>
+          <div class="kv"><span>{{ t('连接密钥') }}</span><code>{{ ext.key }}</code><NButton size="tiny" @click="copy(ext.key)">{{ t('复制') }}</NButton></div>
+        </details>
+        <p class="muted small">{{ t('连接码只显示这一次。它只能把商品发送到这个店铺的采集列表，不能登录后台。') }}</p>
       </template>
       <template #footer>
-        <div class="foot"><NButton type="primary" @click="newKey">{{ ctx.extension_connected ? t('重新生成密钥') : t('生成连接密钥') }}</NButton></div>
+        <div class="foot"><NButton type="primary" @click="newKey">{{ ctx.extension_connected ? t('重新生成连接码') : t('生成连接码') }}</NButton></div>
       </template>
     </NModal>
   </div>
