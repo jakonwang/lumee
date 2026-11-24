@@ -99,10 +99,10 @@ class ProductController extends Controller
 
             'options' => ['sometimes', 'array', 'max:3'],
             'options.*.name' => ['required', 'string', 'max:64'],
-            'options.*.values' => ['required', 'array', 'min:1', 'max:50'],
-            'options.*.values.*' => ['required', 'string', 'max:64'],
+            'options.*.values' => ['required', 'array', 'min:1', 'max:'.\App\Models\Product::MAX_VARIANTS],
+            'options.*.values.*' => ['required', 'string', 'max:100'],   // as collected (App\Collect\Item)
 
-            'variants' => ['sometimes', 'array', 'min:1', 'max:100'],
+            'variants' => ['sometimes', 'array', 'min:1', 'max:'.\App\Models\Product::MAX_VARIANTS],
             'variants.*.id' => ['nullable', 'integer'],
             'variants.*.options' => ['nullable', 'array'],
             'variants.*.price' => ['required', 'numeric', 'min:0', 'max:9999999'],

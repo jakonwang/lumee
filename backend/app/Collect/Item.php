@@ -18,7 +18,8 @@ final class Item
 {
     public const MAX_IMAGES = 12;
 
-    public const MAX_VARIANTS = 100;
+    /** Same cap as a product (App\Models\Product::MAX_VARIANTS): marketplaces list 100+ SKUs (colour × model). */
+    public const MAX_VARIANTS = \App\Models\Product::MAX_VARIANTS;
 
     public static function normalize(array $d): array
     {

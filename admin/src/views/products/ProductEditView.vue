@@ -28,6 +28,7 @@ const message = useMessage()
 const dialog = useDialog()
 const auth = useAuth()
 
+const MAX_VARIANTS = 300   // same as App\Models\Product::MAX_VARIANTS
 const id = computed(() => (route.params.id && route.params.id !== 'new' ? Number(route.params.id) : null))
 const loading = ref(false)
 const saving = ref(false)
@@ -413,8 +414,8 @@ onMounted(() => {
             </div>
           </template>
 
-          <NAlert v-if="variants.length > 100" type="warning" :bordered="false" style="margin-bottom: 12px">
-            {{ t('组合数超过 100 个，请减少规格值。') }}
+          <NAlert v-if="variants.length > MAX_VARIANTS" type="warning" :bordered="false" style="margin-bottom: 12px">
+            {{ t('组合数超过 {0} 个，请减少规格值。', [MAX_VARIANTS]) }}
           </NAlert>
 
           <div class="vtable-wrap">

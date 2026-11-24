@@ -11,6 +11,9 @@ class Product extends Model
 {
     use BelongsToStore, \App\I18n\HasTranslations;
 
+    /** Most variants (SKUs) one product can have: marketplace listings often have 100+ (colour × phone model). */
+    public const MAX_VARIANTS = 300;
+
     public const TRANSLATION_TYPE = 'product';
 
     public const TRANSLATABLE = ['title', 'description', 'product_type', 'seo'];

@@ -540,7 +540,7 @@
   "共 {0} 个 · 总库存 {1}": "{0} variants · {1} in stock",
   "重量 g": "Weight g",
   "批量设置": "Apply to all",
-  "组合数超过 100 个，请减少规格值。": "More than 100 combinations — please use fewer option values.",
+  "组合数超过 {0} 个，请减少规格值。": "More than {0} combinations — please use fewer option values.",
   "原价": "Compare-at",
   "重量 (g)": "Weight (g)",
   "选择": "Choose",

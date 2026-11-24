@@ -352,7 +352,7 @@ class CollectController extends Controller
             'extracted.options.*.name' => ['required', 'string', 'max:60'],
             'extracted.options.*.values' => ['required', 'array', 'max:200'],
             'extracted.options.*.values.*' => ['nullable', 'string', 'max:200'],
-            'extracted.variants' => ['nullable', 'array', 'max:300'],
+            'extracted.variants' => ['nullable', 'array', 'max:'.Item::MAX_VARIANTS],
             'extracted.variants.*.options' => ['nullable', 'array'],
             'extracted.variants.*.price' => ['nullable', 'string', 'max:50'],
             'extracted.variants.*.compare_price' => ['nullable', 'string', 'max:50'],

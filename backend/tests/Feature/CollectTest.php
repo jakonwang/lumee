@@ -277,6 +277,41 @@ class CollectTest extends TestCase
         $this->assertSame([$item->id, 'ready'], [$found['id'], $found['status']]);
     }
 
+    public function test_marketplace_product_with_hundreds_of_skus_is_kept_whole(): void
+    {
+        $key = $this->as()->postJson('/api/admin/collect/extension-key')->assertOk()->json('key');
+        $colors = array_map(fn ($i) => "Color {$i}", range(1, 5));
+        $models = array_map(fn ($i) => "For iPhone {$i} Pro Max with long model name", range(1, 50));   // 50 × 5 = 250 SKUs
+        $variants = [];
+        foreach ($colors as $c) {
+            foreach ($models as $m) {
+                $variants[] = ['options' => ['Color' => $c, 'Model' => $m], 'price' => '3.99'];
+            }
+        }
+        $this->app['auth']->forgetGuards();
+        $this->flushHeaders();
+        $this->postJson('/api/collector/pages', ['url' => 'https://www.aliexpress.com/item/1005.html', 'platform' => 'aliexpress', 'extracted' => [
+            'title' => 'Leather Case', 'currency' => 'USD', 'images' => ['https://cdn.example.com/case.png'],
+            'options' => [['name' => 'Color', 'values' => $colors], ['name' => 'Model', 'values' => $models]], 'variants' => $variants,
+        ]], ['X-Collector-Key' => $key])->assertCreated()->assertJsonPath('variants', 250);
+
+        $item = $this->item();
+        $this->as()->postJson('/api/admin/collect/items/bulk', ['ids' => [$item->id], 'action' => 'publish'])->assertOk()->assertJsonPath('done', 1);
+        $product = Product::withoutGlobalScope('store')->where('title', 'Leather Case')->firstOrFail();
+        $this->assertSame(250, ProductVariant::withoutGlobalScope('store')->where('product_id', $product->id)->count());
+
+        // …and can still be edited and saved as a whole
+        $detail = $this->as()->getJson('/api/admin/products/'.$product->id)->assertOk()->json('data');
+        $this->as()->putJson('/api/admin/products/'.$product->id, [
+            'options' => array_map(fn ($o) => ['name' => $o['name'], 'values' => $o['values']], $detail['options']),
+            'variants' => array_map(fn ($v) => ['id' => $v['id'], 'options' => $v['options'], 'price' => '9.99'], $detail['variants']),
+        ])->assertOk();
+        $this->assertSame([999], ProductVariant::withoutGlobalScope('store')->where('product_id', $product->id)->distinct()->pluck('price')->all());
+
+        // The cap still applies above it
+        $this->as()->putJson('/api/admin/products/'.$product->id, ['variants' => array_fill(0, Product::MAX_VARIANTS + 1, ['price' => '1'])])->assertJsonValidationErrors('variants');
+    }
+
     public function test_ai_answer_translates_options_without_breaking_variants(): void
     {
         $d = \App\Collect\Item::normalize([
